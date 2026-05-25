@@ -46,14 +46,22 @@ if [[ "$REPO" == git@* ]]; then
     sudo -u "$SERVICE_USER" sh -c "ssh-keyscan -t ed25519,rsa github.com >> /home/$SERVICE_USER/.ssh/known_hosts"
   fi
   # Test auth before attempting the clone — friendlier error.
-  if ! sudo -u "$SERVICE_USER" ssh -o BatchMode=yes -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+  # `ssh -T git@github.com` exits 1 on SUCCESS (GitHub closes the session), so
+  # capture output first and grep separately — can't pipe under `set -o pipefail`.
+  GH_AUTH_OUT=$(sudo -u "$SERVICE_USER" ssh -o BatchMode=yes -T git@github.com 2>&1 || true)
+  if ! echo "$GH_AUTH_OUT" | grep -q "successfully authenticated"; then
+    REPO_PATH=$(echo "$REPO" | sed -E 's#^git@github\.com:##; s#\.git$##')
     echo ""
     echo "*** GitHub SSH auth failed for the '$SERVICE_USER' user. ***"
     echo ""
     echo "Add this PUBLIC KEY as a Deploy Key on the repo:"
-    echo "  https://github.com/OWNER/REPO/settings/keys/new"
+    echo "  https://github.com/$REPO_PATH/settings/keys/new"
+    echo "  (Title: anything, e.g. 'kg-droplet'. Leave 'Allow write access' unchecked.)"
     echo ""
     sudo cat "$KEY.pub"
+    echo ""
+    echo "ssh output was:"
+    echo "$GH_AUTH_OUT" | sed 's/^/  /'
     echo ""
     echo "Then re-run this script."
     exit 1
