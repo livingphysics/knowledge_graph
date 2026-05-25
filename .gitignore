@@ -6,3 +6,5 @@ data/
 .env*
 !.env.example
 next-env.d.ts
+# pdfjs worker copied here by postinstall
+public/pdf.worker.min.mjs

@@ -7,6 +7,7 @@ import BottomDock from '@/components/BottomDock';
 import RelatedSection from '@/components/RelatedSection';
 import NodeIcon from '@/components/NodeIcon';
 import DeleteButton from '@/components/DeleteButton';
+import PdfPreview from '@/components/PdfPreview';
 import { getNode, deleteNode, typeLabel } from '@/lib/nodes';
 import { renderMarkdown } from '@/lib/markdown';
 
@@ -118,11 +119,7 @@ export default async function NodePage({ params }: Props) {
                 Open in new tab ↗
               </a>
             </div>
-            <iframe
-              src={`/api/uploads/${node.pdf_sha256}#view=FitH`}
-              title={`${node.title} (PDF)`}
-              className="w-full h-[80vh] rounded border border-neutral-800 [html.light_&]:border-neutral-200 bg-white"
-            />
+            <PdfPreview src={`/api/uploads/${node.pdf_sha256}`} />
           </div>
         )}
         <RelatedSection slug={slug} />
