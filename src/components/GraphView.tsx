@@ -5,6 +5,7 @@ import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import edgehandles from 'cytoscape-edgehandles';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Pencil, Check } from 'lucide-react';
 
 cytoscape.use(fcose);
 cytoscape.use(edgehandles);
@@ -33,15 +34,29 @@ interface HoverState {
   y: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EhInstance = { enableDrawMode?: () => void; disableDrawMode?: () => void } & any;
+
 export default function GraphView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
+  const ehRef = useRef<EhInstance | null>(null);
+  const editingRef = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const focus = searchParams.get('focus');
   const [empty, setEmpty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  // Keep the ref in sync so cytoscape event handlers can read the latest value.
+  useEffect(() => {
+    editingRef.current = editing;
+    if (!ehRef.current) return;
+    if (editing) ehRef.current.enableDrawMode?.();
+    else ehRef.current.disableDrawMode?.();
+  }, [editing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,10 +192,12 @@ export default function GraphView() {
             nodeRepulsion: 6500,
             gravity: 0.15,
             padding: 60,
+            nodeDimensionsIncludeLabels: true,
           } as cytoscape.LayoutOptions,
         });
 
         cy.on('tap', 'node', (evt) => {
+          if (editingRef.current) return; // in edit mode, taps on nodes start edges, not nav
           const slug = evt.target.id();
           router.push(`/n/${slug}`);
         });
@@ -193,12 +210,12 @@ export default function GraphView() {
           handleNodes: 'node',
           edgeParams: () => ({}),
         });
-        eh.enableDrawMode?.();
+        // Don't enable draw mode here — it stays off until the user toggles edit mode.
+        ehRef.current = eh;
 
         cy.on('ehcomplete', (_evt, sourceNode, targetNode, addedEdge) => {
           const from = sourceNode.id() as string;
           const to = targetNode.id() as string;
-          // Remove the optimistic preview edge — refetch will show the real one once persisted.
           addedEdge.remove();
           fetch('/api/links', {
             method: 'POST',
@@ -211,16 +228,18 @@ export default function GraphView() {
                 alert(`Link failed: ${res.error}`);
                 return;
               }
-              // Add edge locally so we don't reload the whole graph.
               const id = from < to ? `${from}--${to}` : `${to}--${from}`;
               if (!cy.getElementById(id).nonempty()) {
-                cy.add({ data: { id, source: from < to ? from : to, target: from < to ? to : from } });
+                cy.add({
+                  data: { id, source: from < to ? from : to, target: from < to ? to : from },
+                });
               }
             })
             .catch((e) => alert(`Link failed: ${e?.message ?? 'network error'}`));
         });
 
         cy.on('tap', 'edge', (evt) => {
+          if (!editingRef.current) return; // only delete edges in edit mode
           const edge = evt.target;
           const a = edge.source().id() as string;
           const b = edge.target().id() as string;
@@ -260,7 +279,7 @@ export default function GraphView() {
           setHover(null);
         });
 
-        cy.on('pan zoom', () => setHover(null));
+        cy.on('pan zoom drag', () => setHover(null));
 
         cy.one('layoutstop', () => {
           if (focus) {
@@ -282,6 +301,7 @@ export default function GraphView() {
 
     return () => {
       cancelled = true;
+      ehRef.current = null;
       cyRef.current?.destroy();
       cyRef.current = null;
     };
@@ -306,18 +326,51 @@ export default function GraphView() {
   return (
     <>
       <div ref={containerRef} className="absolute inset-0" />
+      <EditToggle editing={editing} onToggle={() => setEditing((e) => !e)} />
+      {editing && <EditHint />}
       <Legend />
-      <EditHint />
       {hover && <Tooltip hover={hover} />}
     </>
   );
 }
 
+function EditToggle({
+  editing,
+  onToggle,
+}: {
+  editing: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-pressed={editing}
+      className={`fixed top-3 right-16 z-40 px-3 h-10 inline-flex items-center gap-1.5 rounded-lg border text-sm transition ${
+        editing
+          ? 'bg-sky-700 hover:bg-sky-600 border-sky-600 text-white'
+          : 'bg-neutral-800/90 hover:bg-neutral-700 border-neutral-700 [html.light_&]:bg-neutral-100/95 [html.light_&]:hover:bg-neutral-200 [html.light_&]:border-neutral-300'
+      }`}
+    >
+      {editing ? (
+        <>
+          <Check className="w-4 h-4" strokeWidth={1.75} />
+          Done
+        </>
+      ) : (
+        <>
+          <Pencil className="w-4 h-4" strokeWidth={1.75} />
+          Edit links
+        </>
+      )}
+    </button>
+  );
+}
+
 function EditHint() {
   return (
-    <div className="absolute top-3 left-16 z-10 px-3 py-2 rounded-lg bg-neutral-900/85 [html.light_&]:bg-white/95 border border-neutral-800 [html.light_&]:border-neutral-200 backdrop-blur text-[11px] text-neutral-400 [html.light_&]:text-neutral-600 max-w-xs pointer-events-none">
+    <div className="absolute top-16 right-16 z-10 px-3 py-2 rounded-lg bg-neutral-900/85 [html.light_&]:bg-white/95 border border-neutral-800 [html.light_&]:border-neutral-200 backdrop-blur text-[11px] text-neutral-400 [html.light_&]:text-neutral-600 max-w-xs pointer-events-none">
       <div>Drag the dot on a node onto another node to link them.</div>
-      <div>Tap an edge to delete it.</div>
+      <div>Tap an edge to remove it.</div>
     </div>
   );
 }
