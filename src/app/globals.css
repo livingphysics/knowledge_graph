@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-neutral-950 text-neutral-100;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html.light body {
+  @apply bg-neutral-50 text-neutral-900;
+}
+
+.prose-body {
+  @apply leading-relaxed;
+}
+.prose-body h1 { @apply text-3xl font-semibold mt-6 mb-3; }
+.prose-body h2 { @apply text-2xl font-semibold mt-5 mb-2; }
+.prose-body h3 { @apply text-xl font-semibold mt-4 mb-2; }
+.prose-body p  { @apply my-3; }
+.prose-body ul { @apply list-disc pl-6 my-3; }
+.prose-body ol { @apply list-decimal pl-6 my-3; }
+.prose-body code {
+  @apply px-1 py-0.5 rounded bg-neutral-800 text-sm;
+}
+html.light .prose-body code { @apply bg-neutral-200; }
+.prose-body pre {
+  @apply p-3 rounded bg-neutral-900 overflow-x-auto my-3;
+}
+html.light .prose-body pre { @apply bg-neutral-100; }
+.prose-body a {
+  @apply underline decoration-dotted underline-offset-4;
+}
+.prose-body a.wikilink {
+  @apply text-sky-400 no-underline border-b border-dashed border-sky-700;
+}
+html.light .prose-body a.wikilink {
+  @apply text-sky-700 border-sky-300;
+}
+.prose-body a.wikilink.missing {
+  @apply text-amber-400 border-amber-700;
+}
+html.light .prose-body a.wikilink.missing {
+  @apply text-amber-700 border-amber-300;
+}

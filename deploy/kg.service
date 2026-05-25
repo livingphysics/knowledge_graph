@@ -1,0 +1,22 @@
+[Unit]
+Description=Knowledge Graph (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=kg
+Group=kg
+WorkingDirectory=/srv/kg
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Modest hardening — the service still needs to write to /srv/kg/data.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/srv/kg/data
+
+[Install]
+WantedBy=multi-user.target
