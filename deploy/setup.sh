@@ -13,6 +13,19 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
+# --- swap (small droplets only) ---
+# next build needs ~2GB peak; tiny droplets OOM/thrash without swap.
+TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+SWAP_MB=$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)
+if [[ "$TOTAL_MB" -lt 2048 && "$SWAP_MB" -lt 1024 ]]; then
+  echo ">>> low RAM ($TOTAL_MB MB) and no swap — creating 2GB /swapfile"
+  sudo fallocate -l 2G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+fi
+
 # --- packages ---
 echo ">>> installing system packages"
 sudo apt-get update
