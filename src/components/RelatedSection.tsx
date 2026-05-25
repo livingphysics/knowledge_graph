@@ -57,9 +57,9 @@ function RelatedCard({ type, items }: { type: NodeType; items: RelatedItem[] }) 
               href={`/n/${n.slug}`}
               className="block px-4 py-3 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-100"
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <div className="font-medium truncate">{n.title}</div>
-                <div className="text-[11px] text-neutral-500 whitespace-nowrap">
+              <div className="flex items-start justify-between gap-3">
+                <div className="font-medium line-clamp-2">{n.title}</div>
+                <div className="text-[11px] text-neutral-500 whitespace-nowrap pt-0.5">
                   {formatDate(n.created_at)}
                 </div>
               </div>
@@ -97,7 +97,7 @@ function Header({
             {formatDate(item.created_at)}
           </div>
         </div>
-        <div className="font-medium truncate">{item.title}</div>
+        <div className="font-medium line-clamp-2">{item.title}</div>
         {item.preview && (
           <p className="mt-1 text-sm text-neutral-400 [html.light_&]:text-neutral-600 line-clamp-3">
             {item.preview}
