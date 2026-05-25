@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Network } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
+import HomeButton from '@/components/HomeButton';
 import BottomDock from '@/components/BottomDock';
 import RelatedSection from '@/components/RelatedSection';
 import NodeIcon from '@/components/NodeIcon';
@@ -21,7 +22,8 @@ export default async function NodePage({ params }: Props) {
   if (!node) {
     return (
       <>
-        <TopMenu />
+        <HomeButton />
+      <TopMenu />
         <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
           <h1 className="text-3xl font-semibold mb-2">Node not found</h1>
           <p className="text-neutral-400 [html.light_&]:text-neutral-600 mb-6">
@@ -65,6 +67,7 @@ export default async function NodePage({ params }: Props) {
 
   return (
     <>
+      <HomeButton />
       <TopMenu />
       <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
         <div className="flex items-center justify-between mb-3 text-sm text-neutral-400 [html.light_&]:text-neutral-600">

@@ -1,9 +1,11 @@
 import { notFound, redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import TopMenu from '@/components/TopMenu';
+import HomeButton from '@/components/HomeButton';
 import NodeIcon from '@/components/NodeIcon';
 import { getNode, updateNode, typeLabel } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
+import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,7 @@ export default async function EditNodePage({ params }: Props) {
 
   return (
     <>
+      <HomeButton />
       <TopMenu />
       <main className="max-w-2xl mx-auto px-6 pt-16 pb-24">
         <h1 className="text-2xl font-semibold mb-6 inline-flex items-center gap-2">
@@ -128,13 +131,10 @@ export default async function EditNodePage({ params }: Props) {
           )}
 
           <label className="flex flex-col gap-1">
-            <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">Body (markdown)</span>
-            <textarea
-              name="body_md"
-              rows={20}
-              defaultValue={node.body_md}
-              className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 font-mono text-sm focus:outline-none focus:border-sky-500"
-            />
+            <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
+              Body (markdown — type [[ for link suggestions)
+            </span>
+            <MarkdownEditor name="body_md" defaultValue={node.body_md} rows={20} />
           </label>
 
           <div className="flex gap-2">

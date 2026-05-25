@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import TopMenu from '@/components/TopMenu';
+import HomeButton from '@/components/HomeButton';
 import NodeIcon from '@/components/NodeIcon';
 import { createNode, typeLabel, type NodeType } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
+import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +60,7 @@ export default async function NewNodePage({ searchParams }: Props) {
 
   return (
     <>
+      <HomeButton />
       <TopMenu />
       <main className="max-w-2xl mx-auto px-6 pt-16 pb-24">
         <h1 className="text-3xl font-semibold mb-1 inline-flex items-center gap-2.5">
@@ -120,14 +123,9 @@ export default async function NewNodePage({ searchParams }: Props) {
 
           <label className="flex flex-col gap-1">
             <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
-              Body (markdown — use [[other-node]] to link)
+              Body (markdown — use [[other-node]] to link; autocomplete pops up)
             </span>
-            <textarea
-              name="body_md"
-              rows={14}
-              defaultValue={prefilledBody}
-              className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 font-mono text-sm focus:outline-none focus:border-sky-500"
-            />
+            <MarkdownEditor name="body_md" defaultValue={prefilledBody} rows={14} />
           </label>
 
           <div className="flex gap-2">
@@ -137,6 +135,12 @@ export default async function NewNodePage({ searchParams }: Props) {
             >
               Create
             </button>
+            <a
+              href={fromSlug ? `/n/${fromSlug}` : '/'}
+              className="px-4 py-2 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200"
+            >
+              Cancel
+            </a>
           </div>
         </form>
       </main>

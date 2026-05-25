@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
 import fcose from 'cytoscape-fcose';
+import edgehandles from 'cytoscape-edgehandles';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 cytoscape.use(fcose);
+cytoscape.use(edgehandles);
 
 const COLORS = {
   question: '#0ea5e9',
@@ -129,6 +131,40 @@ export default function GraphView() {
                 'curve-style': 'straight',
               },
             },
+            {
+              selector: 'edge:active, edge.hovered',
+              style: { width: 3, 'line-color': '#ef4444' },
+            },
+            // edgehandles plug-in styling
+            {
+              selector: '.eh-handle',
+              style: {
+                'background-color': '#fafafa',
+                width: 8,
+                height: 8,
+                shape: 'ellipse',
+                'overlay-opacity': 0,
+                'border-width': 2,
+                'border-color': '#0ea5e9',
+              },
+            },
+            {
+              selector: '.eh-source, .eh-target',
+              style: { 'border-width': 2, 'border-color': '#0ea5e9' },
+            },
+            {
+              selector: '.eh-preview, .eh-ghost-edge',
+              style: {
+                'line-color': '#0ea5e9',
+                'line-style': 'dashed',
+                width: 2,
+                opacity: 0.9,
+              },
+            },
+            {
+              selector: '.eh-ghost-edge.eh-preview-active',
+              style: { opacity: 0 },
+            },
           ],
           layout: {
             name: 'fcose',
@@ -147,6 +183,67 @@ export default function GraphView() {
         cy.on('tap', 'node', (evt) => {
           const slug = evt.target.id();
           router.push(`/n/${slug}`);
+        });
+
+        // --- edge editing ---
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const eh = (cy as any).edgehandles({
+          snap: true,
+          snapThreshold: 30,
+          handleNodes: 'node',
+          edgeParams: () => ({}),
+        });
+        eh.enableDrawMode?.();
+
+        cy.on('ehcomplete', (_evt, sourceNode, targetNode, addedEdge) => {
+          const from = sourceNode.id() as string;
+          const to = targetNode.id() as string;
+          // Remove the optimistic preview edge — refetch will show the real one once persisted.
+          addedEdge.remove();
+          fetch('/api/links', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ from, to }),
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.error) {
+                alert(`Link failed: ${res.error}`);
+                return;
+              }
+              // Add edge locally so we don't reload the whole graph.
+              const id = from < to ? `${from}--${to}` : `${to}--${from}`;
+              if (!cy.getElementById(id).nonempty()) {
+                cy.add({ data: { id, source: from < to ? from : to, target: from < to ? to : from } });
+              }
+            })
+            .catch((e) => alert(`Link failed: ${e?.message ?? 'network error'}`));
+        });
+
+        cy.on('tap', 'edge', (evt) => {
+          const edge = evt.target;
+          const a = edge.source().id() as string;
+          const b = edge.target().id() as string;
+          if (!confirm(`Remove link between "${a}" and "${b}"?`)) return;
+          edge.addClass('hovered');
+          fetch('/api/links', {
+            method: 'DELETE',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ a, b }),
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.error) {
+                alert(`Delete failed: ${res.error}`);
+                edge.removeClass('hovered');
+                return;
+              }
+              edge.remove();
+            })
+            .catch((e) => {
+              alert(`Delete failed: ${e?.message ?? 'network error'}`);
+              edge.removeClass('hovered');
+            });
         });
 
         cy.on('mouseover', 'node', (evt) => {
@@ -210,8 +307,18 @@ export default function GraphView() {
     <>
       <div ref={containerRef} className="absolute inset-0" />
       <Legend />
+      <EditHint />
       {hover && <Tooltip hover={hover} />}
     </>
+  );
+}
+
+function EditHint() {
+  return (
+    <div className="absolute top-3 left-16 z-10 px-3 py-2 rounded-lg bg-neutral-900/85 [html.light_&]:bg-white/95 border border-neutral-800 [html.light_&]:border-neutral-200 backdrop-blur text-[11px] text-neutral-400 [html.light_&]:text-neutral-600 max-w-xs pointer-events-none">
+      <div>Drag the dot on a node onto another node to link them.</div>
+      <div>Tap an edge to delete it.</div>
+    </div>
   );
 }
 

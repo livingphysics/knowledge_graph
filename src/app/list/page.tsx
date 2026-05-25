@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import TopMenu from '@/components/TopMenu';
+import HomeButton from '@/components/HomeButton';
 import BottomDock from '@/components/BottomDock';
 import NodeIcon from '@/components/NodeIcon';
 import { listNodes, typeLabel, type NodeType } from '@/lib/nodes';
@@ -20,6 +21,7 @@ export default async function ListPage({ searchParams }: Props) {
 
   return (
     <>
+      <HomeButton />
       <TopMenu />
       <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
         <h1 className="text-3xl font-semibold mb-6 inline-flex items-center gap-2.5">
