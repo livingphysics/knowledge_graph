@@ -48,6 +48,26 @@ function init(db: Database.Database) {
       FOREIGN KEY (node_slug) REFERENCES nodes(slug) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_revisions_node ON revisions(node_slug, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      node_slug       TEXT NOT NULL,
+      body            TEXT NOT NULL,
+      author_ip_hash  TEXT,
+      created_at      INTEGER NOT NULL,
+      FOREIGN KEY (node_slug) REFERENCES nodes(slug) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_comments_node ON comments(node_slug, created_at ASC);
+
+    CREATE TABLE IF NOT EXISTS reactions (
+      node_slug       TEXT NOT NULL,
+      emoji           TEXT NOT NULL,
+      author_ip_hash  TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      PRIMARY KEY (node_slug, emoji, author_ip_hash),
+      FOREIGN KEY (node_slug) REFERENCES nodes(slug) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_reactions_node ON reactions(node_slug, emoji);
   `);
 }
 

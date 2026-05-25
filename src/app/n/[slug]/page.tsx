@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { Network } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
@@ -8,8 +10,12 @@ import RelatedSection from '@/components/RelatedSection';
 import NodeIcon from '@/components/NodeIcon';
 import DeleteButton from '@/components/DeleteButton';
 import PdfPreview from '@/components/PdfPreview';
+import ReactionBar from '@/components/ReactionBar';
+import CommentsSection from '@/components/CommentsSection';
 import { getNode, deleteNode, typeLabel } from '@/lib/nodes';
 import { renderMarkdown } from '@/lib/markdown';
+import { listComments, addComment, deleteComment } from '@/lib/comments';
+import { listReactions } from '@/lib/reactions';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,11 +65,45 @@ export default async function NodePage({ params }: Props) {
   }
 
   const html = await renderMarkdown(node.body_md || '_(empty)_');
+  const comments = listComments(slug);
+
+  // Fetch reactions with current viewer's IP so `mine` is correct in initial render.
+  const reqHeaders = await headers();
+  const viewerIp =
+    reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    reqHeaders.get('x-real-ip') ||
+    null;
+  const reactions = listReactions(slug, viewerIp);
 
   async function del() {
     'use server';
     deleteNode(slug);
     redirect('/');
+  }
+
+  async function addCommentAction(formData: FormData) {
+    'use server';
+    const body = String(formData.get('body') ?? '');
+    const honeypot = String(formData.get('website') ?? '');
+    if (honeypot) return;
+    const h = await headers();
+    const ip =
+      h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      h.get('x-real-ip') ||
+      null;
+    try {
+      addComment(slug, body, ip);
+    } catch {
+      // swallow validation errors silently for v1
+    }
+    revalidatePath(`/n/${slug}`);
+  }
+
+  async function deleteCommentAction(formData: FormData) {
+    'use server';
+    const id = Number(formData.get('id'));
+    if (Number.isFinite(id)) deleteComment(id);
+    revalidatePath(`/n/${slug}`);
   }
 
   return (
@@ -122,6 +162,12 @@ export default async function NodePage({ params }: Props) {
             <PdfPreview src={`/api/uploads/${node.pdf_sha256}`} />
           </div>
         )}
+        <ReactionBar slug={slug} initial={reactions} />
+        <CommentsSection
+          comments={comments}
+          addAction={addCommentAction}
+          deleteAction={deleteCommentAction}
+        />
         <RelatedSection slug={slug} />
       </main>
       <BottomDock fromSlug={slug} />
