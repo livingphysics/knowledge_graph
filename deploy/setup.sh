@@ -31,6 +31,35 @@ if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   sudo useradd --system --create-home --shell /bin/bash "$SERVICE_USER"
 fi
 
+# --- ssh deploy key (only if REPO is an SSH URL) ---
+if [[ "$REPO" == git@* ]]; then
+  KEY="/home/$SERVICE_USER/.ssh/id_ed25519"
+  if ! sudo test -f "$KEY"; then
+    echo ">>> generating SSH deploy key for $SERVICE_USER (none found at $KEY)"
+    sudo -u "$SERVICE_USER" mkdir -p "/home/$SERVICE_USER/.ssh"
+    sudo -u "$SERVICE_USER" chmod 700 "/home/$SERVICE_USER/.ssh"
+    sudo -u "$SERVICE_USER" ssh-keygen -t ed25519 -N "" -f "$KEY"
+  fi
+  # Pre-trust GitHub host key so the clone doesn't hang on a prompt.
+  if ! sudo -u "$SERVICE_USER" grep -q github.com "/home/$SERVICE_USER/.ssh/known_hosts" 2>/dev/null; then
+    echo ">>> trusting github.com host key"
+    sudo -u "$SERVICE_USER" sh -c "ssh-keyscan -t ed25519,rsa github.com >> /home/$SERVICE_USER/.ssh/known_hosts"
+  fi
+  # Test auth before attempting the clone — friendlier error.
+  if ! sudo -u "$SERVICE_USER" ssh -o BatchMode=yes -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+    echo ""
+    echo "*** GitHub SSH auth failed for the '$SERVICE_USER' user. ***"
+    echo ""
+    echo "Add this PUBLIC KEY as a Deploy Key on the repo:"
+    echo "  https://github.com/OWNER/REPO/settings/keys/new"
+    echo ""
+    sudo cat "$KEY.pub"
+    echo ""
+    echo "Then re-run this script."
+    exit 1
+  fi
+fi
+
 # --- clone / pull ---
 if [[ ! -d "$APP_DIR/.git" ]]; then
   echo ">>> cloning $REPO into $APP_DIR"
