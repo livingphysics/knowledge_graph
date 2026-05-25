@@ -4,17 +4,9 @@ import { getDb, paths } from './db';
 import { uniqueSlug, slugify } from './slug';
 import { uniqueSlugsFromMarkdown } from './wikilinks';
 
-export type NodeType = 'question' | 'thought' | 'reference';
-
-export interface NodeRecord {
-  slug: string;
-  type: NodeType;
-  title: string;
-  url: string | null;
-  pdf_sha256: string | null;
-  created_at: number;
-  updated_at: number;
-}
+// Re-exported from the DB-free leaf so existing imports keep working.
+export { typeLabel, type NodeType, type NodeRecord, type RelatedItem } from './node-types';
+import type { NodeType, NodeRecord, RelatedItem } from './node-types';
 
 export interface NodeWithBody extends NodeRecord {
   body_md: string;
@@ -49,9 +41,6 @@ export function listNodes(opts: { type?: NodeType; limit?: number } = {}): NodeR
     .all(limit) as NodeRecord[];
 }
 
-export interface RelatedItem extends NodeRecord {
-  preview: string;
-}
 export type RelatedByType = Record<NodeType, RelatedItem[]>;
 
 export function makePreview(md: string, maxChars = 280): string {
@@ -227,10 +216,6 @@ function refreshLinks(slug: string, body: string): void {
     'INSERT OR IGNORE INTO links (from_slug, to_slug) VALUES (?, ?)'
   );
   for (const t of targets) insert.run(slug, t);
-}
-
-export function typeLabel(t: NodeType): string {
-  return t === 'question' ? 'Question' : t === 'thought' ? 'Thought' : 'Reference';
 }
 
 export { slugify };
