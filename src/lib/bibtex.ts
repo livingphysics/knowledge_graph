@@ -1,4 +1,5 @@
 import { listNodes, type NodeRecord } from './nodes';
+import { extractArxivIdFromPdf } from './pdf-arxiv';
 
 const TIMEOUT_MS = 10_000;
 const USER_AGENT = 'KnowledgeGraph/1.0 (mailto:noreply@example.com)';
@@ -144,7 +145,7 @@ function bibtexMisc(node: NodeRecord): string {
 }
 
 export interface BibtexResult {
-  source: 'override' | 'doi' | 'arxiv' | 'crossref-title' | 'fallback';
+  source: 'override' | 'doi' | 'arxiv' | 'arxiv-pdf' | 'crossref-title' | 'fallback';
   bibtex: string;
 }
 
@@ -161,6 +162,15 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
   if (id?.kind === 'arxiv') {
     const out = await fetchBibtexFromArxiv(id.id);
     if (out) return { source: 'arxiv', bibtex: out };
+  }
+  // PDF-based arXiv id: if the user uploaded an arXiv PDF, the watermark gives us the id
+  // even when the URL doesn't point to arxiv.
+  if (node.pdf_sha256) {
+    const arxivId = await extractArxivIdFromPdf(node.pdf_sha256);
+    if (arxivId) {
+      const out = await fetchBibtexFromArxiv(arxivId);
+      if (out) return { source: 'arxiv-pdf', bibtex: out };
+    }
   }
   // Title-based fallback via Crossref
   const doi = await searchCrossrefForDoi(node.title);
