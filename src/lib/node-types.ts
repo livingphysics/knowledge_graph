@@ -12,9 +12,11 @@ export interface NodeRecord {
   updated_at: number;
 }
 
-export interface RelatedItem extends NodeRecord {
+export interface NodeWithPreview extends NodeRecord {
   preview: string;
 }
+// Semantic alias — same shape, used for related-node lists.
+export type RelatedItem = NodeWithPreview;
 
 export function typeLabel(t: NodeType): string {
   return t === 'question' ? 'Question' : t === 'thought' ? 'Thought' : 'Reference';

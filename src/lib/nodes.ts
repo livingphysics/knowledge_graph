@@ -5,8 +5,14 @@ import { uniqueSlug, slugify } from './slug';
 import { uniqueSlugsFromMarkdown } from './wikilinks';
 
 // Re-exported from the DB-free leaf so existing imports keep working.
-export { typeLabel, type NodeType, type NodeRecord, type RelatedItem } from './node-types';
-import type { NodeType, NodeRecord, RelatedItem } from './node-types';
+export {
+  typeLabel,
+  type NodeType,
+  type NodeRecord,
+  type NodeWithPreview,
+  type RelatedItem,
+} from './node-types';
+import type { NodeType, NodeRecord, NodeWithPreview, RelatedItem } from './node-types';
 
 export interface NodeWithBody extends NodeRecord {
   body_md: string;
@@ -28,17 +34,24 @@ export function getNode(slug: string): NodeWithBody | null {
   return { ...row, body_md: body };
 }
 
-export function listNodes(opts: { type?: NodeType; limit?: number } = {}): NodeRecord[] {
+export function listNodes(opts: { type?: NodeType; limit?: number } = {}): NodeWithPreview[] {
   const db = getDb();
   const limit = opts.limit ?? 200;
-  if (opts.type) {
-    return db
-      .prepare('SELECT * FROM nodes WHERE type = ? ORDER BY updated_at DESC LIMIT ?')
-      .all(opts.type, limit) as NodeRecord[];
-  }
-  return db
-    .prepare('SELECT * FROM nodes ORDER BY updated_at DESC LIMIT ?')
-    .all(limit) as NodeRecord[];
+  const rows = (opts.type
+    ? db
+        .prepare('SELECT * FROM nodes WHERE type = ? ORDER BY updated_at DESC LIMIT ?')
+        .all(opts.type, limit)
+    : db
+        .prepare('SELECT * FROM nodes ORDER BY updated_at DESC LIMIT ?')
+        .all(limit)) as NodeRecord[];
+
+  return rows.map((n) => {
+    let body = '';
+    try {
+      body = fs.readFileSync(paths.nodeFile(n.slug), 'utf8');
+    } catch {}
+    return { ...n, preview: makePreview(body, 200) };
+  });
 }
 
 export type RelatedByType = Record<NodeType, RelatedItem[]>;
