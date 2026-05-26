@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Download } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
 import HomeButton from '@/components/HomeButton';
 import BottomDock from '@/components/BottomDock';
@@ -31,15 +32,26 @@ export default async function ListPage({ searchParams }: Props) {
       <HomeButton />
       <TopMenu />
       <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
-        <h1 className="text-3xl font-semibold mb-6 inline-flex items-center gap-2.5">
-          {type ? (
-            <>
-              <NodeIcon type={type} className="w-6 h-6" /> All {typeLabel(type)}s
-            </>
-          ) : (
-            'All nodes'
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+          <h1 className="text-3xl font-semibold inline-flex items-center gap-2.5">
+            {type ? (
+              <>
+                <NodeIcon type={type} className="w-6 h-6" /> All {typeLabel(type)}s
+              </>
+            ) : (
+              'All nodes'
+            )}
+          </h1>
+          {type === 'reference' && nodes.length > 0 && (
+            <a
+              href="/api/bibtex/all"
+              className="px-3 py-1.5 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5 text-sm"
+            >
+              <Download className="w-4 h-4" strokeWidth={1.75} />
+              Export all (.bib)
+            </a>
           )}
-        </h1>
+        </div>
         {nodes.length === 0 ? (
           <p className="text-neutral-400 [html.light_&]:text-neutral-600">No nodes yet.</p>
         ) : (

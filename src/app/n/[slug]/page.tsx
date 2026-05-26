@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import Link from 'next/link';
-import { Network } from 'lucide-react';
+import { Network, Download } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
 import HomeButton from '@/components/HomeButton';
 import BottomDock from '@/components/BottomDock';
@@ -116,7 +116,17 @@ export default async function NodePage({ params }: Props) {
             <NodeIcon type={node.type} className="w-4 h-4" />
             {typeLabel(node.type)}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {node.type === 'reference' && (
+              <a
+                href={`/api/bibtex/${slug}`}
+                className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"
+                aria-label="Export BibTeX"
+              >
+                <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
+                BibTeX
+              </a>
+            )}
             <Link
               href={`/graph?focus=${encodeURIComponent(slug)}`}
               className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"
