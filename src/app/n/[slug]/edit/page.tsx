@@ -5,6 +5,7 @@ import HomeButton from '@/components/HomeButton';
 import NodeIcon from '@/components/NodeIcon';
 import { getNode, updateNode, typeLabel } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
+import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
 import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
@@ -33,10 +34,14 @@ export default async function EditNodePage({ params }: Props) {
       null;
 
     let pdf_sha256: string | null | undefined = undefined;
+    let pdf_arxiv_id: string | null | undefined = undefined;
     let bibtex_override: string | null | undefined = undefined;
     if (node!.type === 'reference') {
       const remove = formData.get('remove_pdf') === 'on';
-      if (remove) pdf_sha256 = null;
+      if (remove) {
+        pdf_sha256 = null;
+        pdf_arxiv_id = null; // clear cache when PDF is removed
+      }
       const pdf = formData.get('pdf');
       if (pdf instanceof File && pdf.size > 0) {
         try {
@@ -45,12 +50,15 @@ export default async function EditNodePage({ params }: Props) {
           if (e instanceof UploadError) throw e;
           throw new Error('Failed to save PDF');
         }
+        // Re-extract arxiv id whenever the PDF changes
+        const id = await extractArxivIdFromPdf(pdf_sha256);
+        pdf_arxiv_id = id ?? '';
       }
       const rawOverride = String(formData.get('bibtex_override') ?? '').trim();
       bibtex_override = rawOverride.length > 0 ? rawOverride : null;
     }
 
-    updateNode({ slug, title, body_md, url, pdf_sha256, bibtex_override, authorIp: ip });
+    updateNode({ slug, title, body_md, url, pdf_sha256, pdf_arxiv_id, bibtex_override, authorIp: ip });
     redirect(`/n/${slug}`);
   }
 

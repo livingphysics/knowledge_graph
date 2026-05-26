@@ -10,6 +10,11 @@ export interface NodeRecord {
   pdf_sha256: string | null;
   /** If set, used verbatim instead of any auto-detected BibTeX. References only. */
   bibtex_override: string | null;
+  /**
+   * Cached arXiv id extracted from the uploaded PDF. Cleared when the PDF changes.
+   * `null` = haven't parsed yet; `''` = parsed and found no id; otherwise the id.
+   */
+  pdf_arxiv_id: string | null;
   created_at: number;
   updated_at: number;
 }

@@ -103,6 +103,8 @@ export interface CreateNodeInput {
   body_md: string;
   url?: string | null;
   pdf_sha256?: string | null;
+  /** Cached arXiv id from the PDF, if extracted at upload time. */
+  pdf_arxiv_id?: string | null;
   authorIp?: string | null;
   /** If provided, ensures a [[backlink]] to this slug is appended to the body. */
   linkFromSlug?: string | null;
@@ -129,9 +131,18 @@ export function createNode(input: CreateNodeInput): NodeRecord {
 
   const tx = db.transaction(() => {
     db.prepare(
-      `INSERT INTO nodes (slug, type, title, url, pdf_sha256, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(slug, input.type, title, input.url ?? null, input.pdf_sha256 ?? null, now, now);
+      `INSERT INTO nodes (slug, type, title, url, pdf_sha256, pdf_arxiv_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      slug,
+      input.type,
+      title,
+      input.url ?? null,
+      input.pdf_sha256 ?? null,
+      input.pdf_arxiv_id ?? null,
+      now,
+      now
+    );
 
     db.prepare(
       `INSERT INTO revisions (node_slug, body_md, title, author_ip_hash, created_at)
@@ -153,6 +164,12 @@ export interface UpdateNodeInput {
   url?: string | null;
   /** undefined = leave unchanged, null = clear, string = set */
   pdf_sha256?: string | null;
+  /**
+   * undefined = leave unchanged.
+   * If `pdf_sha256` is being changed, this is forcibly reset (null on clear, your
+   * value on set) — the cache must match the current PDF.
+   */
+  pdf_arxiv_id?: string | null;
   /** undefined = leave unchanged, null = clear, string = set */
   bibtex_override?: string | null;
   authorIp?: string | null;
@@ -169,11 +186,22 @@ export function updateNode(input: UpdateNodeInput): NodeRecord {
   const pdf = input.pdf_sha256 === undefined ? existing.pdf_sha256 : input.pdf_sha256;
   const bib =
     input.bibtex_override === undefined ? existing.bibtex_override : input.bibtex_override;
+  // If the PDF changed, invalidate the cached arxiv id (or replace it with the freshly-extracted one).
+  let arxivId: string | null;
+  if (input.pdf_sha256 !== undefined) {
+    arxivId = input.pdf_arxiv_id ?? null;
+  } else if (input.pdf_arxiv_id !== undefined) {
+    arxivId = input.pdf_arxiv_id;
+  } else {
+    arxivId = existing.pdf_arxiv_id;
+  }
 
   const tx = db.transaction(() => {
     db.prepare(
-      `UPDATE nodes SET title = ?, url = ?, pdf_sha256 = ?, bibtex_override = ?, updated_at = ? WHERE slug = ?`
-    ).run(title, input.url ?? existing.url, pdf, bib, now, input.slug);
+      `UPDATE nodes
+         SET title = ?, url = ?, pdf_sha256 = ?, pdf_arxiv_id = ?, bibtex_override = ?, updated_at = ?
+       WHERE slug = ?`
+    ).run(title, input.url ?? existing.url, pdf, arxivId, bib, now, input.slug);
 
     db.prepare(
       `INSERT INTO revisions (node_slug, body_md, title, author_ip_hash, created_at)
@@ -186,6 +214,13 @@ export function updateNode(input: UpdateNodeInput): NodeRecord {
 
   fs.writeFileSync(paths.nodeFile(input.slug), input.body_md, 'utf8');
   return db.prepare('SELECT * FROM nodes WHERE slug = ?').get(input.slug) as NodeRecord;
+}
+
+/** Writes only the pdf_arxiv_id cache field — used for lazy backfill from bibtexFor. */
+export function setNodePdfArxivId(slug: string, arxivId: string | null): void {
+  getDb()
+    .prepare('UPDATE nodes SET pdf_arxiv_id = ? WHERE slug = ?')
+    .run(arxivId, slug);
 }
 
 export interface DeleteResult {

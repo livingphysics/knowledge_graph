@@ -5,6 +5,7 @@ import HomeButton from '@/components/HomeButton';
 import NodeIcon from '@/components/NodeIcon';
 import { createNode, typeLabel, type NodeType } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
+import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
 import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ async function create(formData: FormData) {
     null;
 
   let pdf_sha256: string | null = null;
+  let pdf_arxiv_id: string | null = null;
   if (type === 'reference') {
     const pdf = formData.get('pdf');
     if (pdf instanceof File && pdf.size > 0) {
@@ -42,10 +44,13 @@ async function create(formData: FormData) {
         if (e instanceof UploadError) throw e;
         throw new Error('Failed to save PDF');
       }
+      // Cache arxiv id at upload time. Empty string means "we tried, none found".
+      const id = await extractArxivIdFromPdf(pdf_sha256);
+      pdf_arxiv_id = id ?? '';
     }
   }
 
-  const node = createNode({ type, title, body_md, url, pdf_sha256, linkFromSlug, authorIp: ip });
+  const node = createNode({ type, title, body_md, url, pdf_sha256, pdf_arxiv_id, linkFromSlug, authorIp: ip });
   redirect(`/n/${node.slug}`);
 }
 

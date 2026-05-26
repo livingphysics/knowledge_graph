@@ -1,4 +1,4 @@
-import { listNodes, type NodeRecord } from './nodes';
+import { listNodes, setNodePdfArxivId, type NodeRecord } from './nodes';
 import { extractArxivIdFromPdf } from './pdf-arxiv';
 
 const TIMEOUT_MS = 10_000;
@@ -163,10 +163,17 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
     const out = await fetchBibtexFromArxiv(id.id);
     if (out) return { source: 'arxiv', bibtex: out };
   }
-  // PDF-based arXiv id: if the user uploaded an arXiv PDF, the watermark gives us the id
-  // even when the URL doesn't point to arxiv.
+  // PDF-based arXiv id: use the cache that was filled at upload time. For legacy
+  // PDFs uploaded before this cache existed, lazily parse + persist on first access.
   if (node.pdf_sha256) {
-    const arxivId = await extractArxivIdFromPdf(node.pdf_sha256);
+    let arxivId: string | null;
+    if (node.pdf_arxiv_id === null) {
+      // Never parsed — do it now and cache the result (empty string = "we tried, none found")
+      arxivId = await extractArxivIdFromPdf(node.pdf_sha256);
+      setNodePdfArxivId(node.slug, arxivId ?? '');
+    } else {
+      arxivId = node.pdf_arxiv_id || null;
+    }
     if (arxivId) {
       const out = await fetchBibtexFromArxiv(arxivId);
       if (out) return { source: 'arxiv-pdf', bibtex: out };
