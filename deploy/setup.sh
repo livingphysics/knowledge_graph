@@ -106,10 +106,15 @@ sudo systemctl enable kg.service
 sudo systemctl restart kg.service
 
 # --- nginx ---
-echo ">>> installing nginx config"
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/kg
-sudo ln -sf /etc/nginx/sites-available/kg /etc/nginx/sites-enabled/kg
-sudo rm -f /etc/nginx/sites-enabled/default
+# If certbot has already added SSL to the live config, don't overwrite it.
+if sudo grep -q ssl_certificate /etc/nginx/sites-available/kg 2>/dev/null; then
+  echo ">>> nginx config has SSL bits already (certbot?) — leaving untouched"
+else
+  echo ">>> installing nginx config"
+  sudo cp deploy/nginx.conf /etc/nginx/sites-available/kg
+  sudo ln -sf /etc/nginx/sites-available/kg /etc/nginx/sites-enabled/kg
+  sudo rm -f /etc/nginx/sites-enabled/default
+fi
 sudo nginx -t
 sudo systemctl reload nginx
 
