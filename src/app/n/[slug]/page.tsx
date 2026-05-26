@@ -174,6 +174,7 @@ export default async function NodePage({ params }: Props) {
         )}
         <ReactionBar slug={slug} initial={reactions} />
         <CommentsSection
+          slug={slug}
           comments={comments}
           addAction={addCommentAction}
           deleteAction={deleteCommentAction}

@@ -56,7 +56,9 @@ export default async function NewNodePage({ searchParams }: Props) {
   const fromSlug = sp.from ? String(sp.from) : '';
   const initialTitle = sp.title ? String(sp.title) : '';
 
-  const prefilledBody = fromSlug ? `<!--links\n[[${fromSlug}]]\n-->\n\n` : '';
+  const initialBody = sp.body ? String(sp.body) : '';
+  const fromBlock = fromSlug ? `<!--links\n[[${fromSlug}]]\n-->\n\n` : '';
+  const prefilledBody = `${fromBlock}${initialBody}`;
 
   return (
     <>
