@@ -12,6 +12,9 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=3000
+# Optional: set SITE_PASSWORD in /etc/kg.env (mode 600, owned by kg) to enable
+# the password gate. Dash prefix = ignore if file is missing.
+EnvironmentFile=-/etc/kg.env
 # Modest hardening — the service still needs to write to /srv/kg/data.
 NoNewPrivileges=true
 ProtectSystem=full

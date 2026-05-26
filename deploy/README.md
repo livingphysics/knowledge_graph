@@ -182,6 +182,35 @@ use `rclone` to push to DigitalOcean Spaces.
 
 ---
 
+## Password-gating the site (keep bots out)
+
+Set a single shared `SITE_PASSWORD` and the whole site (every page + every
+`/api/*` endpoint) requires that password. Unset → no gate (current behaviour).
+
+```bash
+# On the droplet
+sudo install -m 600 -o kg -g kg /dev/null /etc/kg.env
+sudo tee /etc/kg.env > /dev/null <<'EOF'
+SITE_PASSWORD=replace-me-with-a-real-passphrase
+EOF
+sudo systemctl restart kg
+```
+
+Visit any URL → redirected to `/login`. Enter the password → `kg_auth` cookie
+gets set for 30 days, you're through. `/api/*` calls without the cookie get a
+clean `401`.
+
+To rotate or remove the password:
+
+```bash
+sudo $EDITOR /etc/kg.env   # change SITE_PASSWORD=... (or delete the line)
+sudo systemctl restart kg
+```
+
+Existing user cookies stop working as soon as `SITE_PASSWORD` changes (the
+cookie value is `sha256(password)`, so a different password = a different
+expected cookie = forced re-login).
+
 ## Adding HTTPS to an instance
 
 You need a domain or subdomain (Let's Encrypt won't issue certs for raw IPs).
