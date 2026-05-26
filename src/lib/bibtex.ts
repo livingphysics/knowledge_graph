@@ -4,6 +4,18 @@ import { extractArxivIdFromPdf } from './pdf-arxiv';
 const TIMEOUT_MS = 10_000;
 const USER_AGENT = 'KnowledgeGraph/1.0 (mailto:noreply@example.com)';
 const CONCURRENCY = 4;
+// arXiv asks for no more than 1 request per 3 seconds. We use 3.5s for safety.
+const ARXIV_MIN_INTERVAL_MS = 3500;
+
+// Min-interval throttle. Each caller reserves the next slot atomically;
+// later callers naturally queue without needing a mutex.
+let arxivNextAvailableAt = 0;
+async function arxivThrottle(): Promise<void> {
+  const slot = Math.max(Date.now(), arxivNextAvailableAt);
+  arxivNextAvailableAt = slot + ARXIV_MIN_INTERVAL_MS;
+  const delay = slot - Date.now();
+  if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+}
 
 interface Identifier {
   kind: 'doi' | 'arxiv';
@@ -57,10 +69,11 @@ async function fetchBibtexFromDoi(doi: string): Promise<string | null> {
 
 async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
   // arXiv returns plain "Rate exceeded." with status 200 when throttled.
-  // Retry once after a short wait before giving up.
+  // The throttle below should prevent this on our side, but retry once
+  // in case another process / earlier-this-run state slipped through.
   let xml: string | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 3500));
+    await arxivThrottle();
     const res = await fetchWithTimeout(
       `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(id)}`
     );
