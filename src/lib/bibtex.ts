@@ -6,16 +6,21 @@ const USER_AGENT = 'KnowledgeGraph/1.0 (mailto:noreply@example.com)';
 const CONCURRENCY = 4;
 // arXiv asks for no more than 1 request per 3 seconds. We use 3.5s for safety.
 const ARXIV_MIN_INTERVAL_MS = 3500;
+// Semantic Scholar unauthenticated: 100 requests per 5 minutes ≈ 1/3s.
+const S2_MIN_INTERVAL_MS = 3500;
 
-// Min-interval throttle. Each caller reserves the next slot atomically;
-// later callers naturally queue without needing a mutex.
-let arxivNextAvailableAt = 0;
-async function arxivThrottle(): Promise<void> {
-  const slot = Math.max(Date.now(), arxivNextAvailableAt);
-  arxivNextAvailableAt = slot + ARXIV_MIN_INTERVAL_MS;
-  const delay = slot - Date.now();
-  if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+function makeThrottle(minIntervalMs: number) {
+  let nextAvailableAt = 0;
+  return async function throttle(): Promise<void> {
+    const slot = Math.max(Date.now(), nextAvailableAt);
+    nextAvailableAt = slot + minIntervalMs;
+    const delay = slot - Date.now();
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+  };
 }
+
+const arxivThrottle = makeThrottle(ARXIV_MIN_INTERVAL_MS);
+const s2Throttle = makeThrottle(S2_MIN_INTERVAL_MS);
 
 interface Identifier {
   kind: 'doi' | 'arxiv';
@@ -103,6 +108,52 @@ async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
     `  eprint        = {${id}},`,
     `  archivePrefix = {arXiv},`,
     `  url           = {https://arxiv.org/abs/${id}},`,
+    '}',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+interface SemanticScholarResponse {
+  title?: string;
+  authors?: { name?: string }[];
+  year?: number;
+  venue?: string;
+  externalIds?: { ArXiv?: string; DOI?: string };
+}
+
+/**
+ * Semantic Scholar lookup by arXiv id. Hits a different infrastructure than
+ * export.arxiv.org, so it's a useful fallback when arxiv is throttling us.
+ */
+async function fetchBibtexFromSemanticScholar(arxivId: string): Promise<string | null> {
+  await s2Throttle();
+  const url = `https://api.semanticscholar.org/graph/v1/paper/arXiv:${encodeURIComponent(
+    arxivId
+  )}?fields=title,authors,year,externalIds,venue`;
+  const res = await fetchWithTimeout(url);
+  if (!res || !res.ok) return null;
+  let data: SemanticScholarResponse;
+  try {
+    data = (await res.json()) as SemanticScholarResponse;
+  } catch {
+    return null;
+  }
+  if (!data.title) return null;
+
+  const authors = (data.authors ?? []).map((a) => a.name ?? '').filter(Boolean);
+  const key = `arxiv_${arxivId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+  return [
+    `@misc{${key},`,
+    `  title         = {${escapeBraces(data.title)}},`,
+    authors.length
+      ? `  author        = {${authors.map(escapeBraces).join(' and ')}},`
+      : null,
+    data.year ? `  year          = {${data.year}},` : null,
+    `  eprint        = {${arxivId}},`,
+    `  archivePrefix = {arXiv},`,
+    `  url           = {https://arxiv.org/abs/${arxivId}},`,
     '}',
   ]
     .filter(Boolean)
@@ -198,8 +249,10 @@ export interface BibtexResult {
     | 'doi'
     | 'doi-minimal'
     | 'arxiv'
+    | 'arxiv-s2'
     | 'arxiv-minimal'
     | 'arxiv-pdf'
+    | 'arxiv-pdf-s2'
     | 'arxiv-pdf-minimal'
     | 'crossref-title'
     | 'fallback';
@@ -224,6 +277,9 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
   if (id?.kind === 'arxiv') {
     const out = await fetchBibtexFromArxiv(id.id);
     if (out) return { source: 'arxiv', bibtex: out };
+    // arxiv down/throttled — try Semantic Scholar (different infra)
+    const s2 = await fetchBibtexFromSemanticScholar(id.id);
+    if (s2) return { source: 'arxiv-s2', bibtex: s2 };
     return { source: 'arxiv-minimal', bibtex: bibtexArxivMinimal(node, id.id) };
   }
 
@@ -239,6 +295,8 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
     if (arxivId) {
       const out = await fetchBibtexFromArxiv(arxivId);
       if (out) return { source: 'arxiv-pdf', bibtex: out };
+      const s2 = await fetchBibtexFromSemanticScholar(arxivId);
+      if (s2) return { source: 'arxiv-pdf-s2', bibtex: s2 };
       // Same logic: PDF gave us a known arxiv id; don't fall through to title search.
       return { source: 'arxiv-pdf-minimal', bibtex: bibtexArxivMinimal(node, arxivId) };
     }
