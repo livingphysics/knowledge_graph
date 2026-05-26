@@ -56,11 +56,22 @@ async function fetchBibtexFromDoi(doi: string): Promise<string | null> {
 }
 
 async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
-  const res = await fetchWithTimeout(
-    `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(id)}`
-  );
-  if (!res || !res.ok) return null;
-  const xml = await res.text();
+  // arXiv returns plain "Rate exceeded." with status 200 when throttled.
+  // Retry once after a short wait before giving up.
+  let xml: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 3500));
+    const res = await fetchWithTimeout(
+      `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(id)}`
+    );
+    if (!res || !res.ok) continue;
+    const body = await res.text();
+    if (/^\s*Rate exceeded/i.test(body)) continue;
+    xml = body;
+    break;
+  }
+  if (!xml) return null;
+
   const titleMatch = xml.match(/<entry>[\s\S]*?<title>([\s\S]*?)<\/title>/);
   if (!titleMatch) return null;
   const title = titleMatch[1].replace(/\s+/g, ' ').trim();
@@ -83,6 +94,30 @@ async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/** Skeleton entry when we know it's an arxiv paper but the API is unreachable. */
+function bibtexArxivMinimal(node: NodeRecord, id: string): string {
+  const key = `arxiv_${id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  return [
+    `@misc{${key},`,
+    `  title         = {${escapeBraces(node.title)}},`,
+    `  eprint        = {${id}},`,
+    `  archivePrefix = {arXiv},`,
+    `  url           = {https://arxiv.org/abs/${id}},`,
+    '}',
+  ].join('\n');
+}
+
+/** Skeleton entry when we know the DOI but doi.org won't serve us. */
+function bibtexDoiMinimal(node: NodeRecord, doi: string): string {
+  return [
+    `@misc{${node.slug},`,
+    `  title = {${escapeBraces(node.title)}},`,
+    `  doi   = {${doi}},`,
+    `  url   = {https://doi.org/${doi}},`,
+    '}',
+  ].join('\n');
 }
 
 function tokenizeForCompare(s: string): Set<string> {
@@ -145,7 +180,16 @@ function bibtexMisc(node: NodeRecord): string {
 }
 
 export interface BibtexResult {
-  source: 'override' | 'doi' | 'arxiv' | 'arxiv-pdf' | 'crossref-title' | 'fallback';
+  source:
+    | 'override'
+    | 'doi'
+    | 'doi-minimal'
+    | 'arxiv'
+    | 'arxiv-minimal'
+    | 'arxiv-pdf'
+    | 'arxiv-pdf-minimal'
+    | 'crossref-title'
+    | 'fallback';
   bibtex: string;
 }
 
@@ -155,20 +199,25 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
     return { source: 'override', bibtex: node.bibtex_override.trim() };
   }
   const id = extractIdentifier(node.url);
+
+  // Explicit identifier in URL → use API result if we get one, otherwise a minimal
+  // entry pointing at the known id. Crucially we do NOT fall through to fuzzy title
+  // search when we already know what paper this is.
   if (id?.kind === 'doi') {
     const out = await fetchBibtexFromDoi(id.id);
     if (out) return { source: 'doi', bibtex: out };
+    return { source: 'doi-minimal', bibtex: bibtexDoiMinimal(node, id.id) };
   }
   if (id?.kind === 'arxiv') {
     const out = await fetchBibtexFromArxiv(id.id);
     if (out) return { source: 'arxiv', bibtex: out };
+    return { source: 'arxiv-minimal', bibtex: bibtexArxivMinimal(node, id.id) };
   }
-  // PDF-based arXiv id: use the cache that was filled at upload time. For legacy
-  // PDFs uploaded before this cache existed, lazily parse + persist on first access.
+
+  // No identifier in URL — check the PDF watermark next.
   if (node.pdf_sha256) {
     let arxivId: string | null;
     if (node.pdf_arxiv_id === null) {
-      // Never parsed — do it now and cache the result (empty string = "we tried, none found")
       arxivId = await extractArxivIdFromPdf(node.pdf_sha256);
       setNodePdfArxivId(node.slug, arxivId ?? '');
     } else {
@@ -177,9 +226,13 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
     if (arxivId) {
       const out = await fetchBibtexFromArxiv(arxivId);
       if (out) return { source: 'arxiv-pdf', bibtex: out };
+      // Same logic: PDF gave us a known arxiv id; don't fall through to title search.
+      return { source: 'arxiv-pdf-minimal', bibtex: bibtexArxivMinimal(node, arxivId) };
     }
   }
-  // Title-based fallback via Crossref
+
+  // Last resort: fuzzy title search via Crossref. Only reached when we have no
+  // identifier from URL or PDF.
   const doi = await searchCrossrefForDoi(node.title);
   if (doi) {
     const out = await fetchBibtexFromDoi(doi);
