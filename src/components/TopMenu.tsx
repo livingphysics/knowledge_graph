@@ -10,6 +10,7 @@ import {
   FileText,
   Clock,
   Network,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
@@ -57,6 +58,14 @@ export default function TopMenu() {
           <MenuLink href="/list?type=reference" Icon={FileText} label="All references" onClick={() => setOpen(false)} />
           <MenuLink href="/list" Icon={Clock} label="Recent" onClick={() => setOpen(false)} />
           <MenuLink href="/graph" Icon={Network} label="Graph view" onClick={() => setOpen(false)} />
+          <div className="border-t border-neutral-800 [html.light_&]:border-neutral-200" />
+          <MenuLink
+            href="/api/quarto"
+            Icon={Download}
+            label="Export Quarto (.zip)"
+            onClick={() => setOpen(false)}
+            external
+          />
           <div className="border-t border-neutral-800 [html.light_&]:border-neutral-200 px-3 py-2 flex justify-between items-center">
             <span className="text-xs text-neutral-500">Theme</span>
             <ThemeToggle />
@@ -72,21 +81,36 @@ function MenuLink({
   Icon,
   label,
   onClick,
+  external = false,
 }: {
   href: string;
   Icon: LucideIcon;
   label: string;
   onClick: () => void;
+  /** If true, render a plain <a> (e.g., for downloads). Otherwise use next/link. */
+  external?: boolean;
 }) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-100"
-      role="menuitem"
-    >
-      <Icon className="w-4 h-4 text-neutral-400 [html.light_&]:text-neutral-600" strokeWidth={1.75} />
+  const className =
+    'flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-100';
+  const inner = (
+    <>
+      <Icon
+        className="w-4 h-4 text-neutral-400 [html.light_&]:text-neutral-600"
+        strokeWidth={1.75}
+      />
       <span>{label}</span>
+    </>
+  );
+  if (external) {
+    return (
+      <a href={href} onClick={onClick} className={className} role="menuitem">
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} onClick={onClick} className={className} role="menuitem">
+      {inner}
     </Link>
   );
 }
