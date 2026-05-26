@@ -153,6 +153,8 @@ export interface UpdateNodeInput {
   url?: string | null;
   /** undefined = leave unchanged, null = clear, string = set */
   pdf_sha256?: string | null;
+  /** undefined = leave unchanged, null = clear, string = set */
+  bibtex_override?: string | null;
   authorIp?: string | null;
 }
 
@@ -165,11 +167,13 @@ export function updateNode(input: UpdateNodeInput): NodeRecord {
   if (!existing) throw new Error(`No node with slug ${input.slug}`);
   const title = input.title.trim() || existing.title;
   const pdf = input.pdf_sha256 === undefined ? existing.pdf_sha256 : input.pdf_sha256;
+  const bib =
+    input.bibtex_override === undefined ? existing.bibtex_override : input.bibtex_override;
 
   const tx = db.transaction(() => {
     db.prepare(
-      `UPDATE nodes SET title = ?, url = ?, pdf_sha256 = ?, updated_at = ? WHERE slug = ?`
-    ).run(title, input.url ?? existing.url, pdf, now, input.slug);
+      `UPDATE nodes SET title = ?, url = ?, pdf_sha256 = ?, bibtex_override = ?, updated_at = ? WHERE slug = ?`
+    ).run(title, input.url ?? existing.url, pdf, bib, now, input.slug);
 
     db.prepare(
       `INSERT INTO revisions (node_slug, body_md, title, author_ip_hash, created_at)

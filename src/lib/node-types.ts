@@ -8,6 +8,8 @@ export interface NodeRecord {
   title: string;
   url: string | null;
   pdf_sha256: string | null;
+  /** If set, used verbatim instead of any auto-detected BibTeX. References only. */
+  bibtex_override: string | null;
   created_at: number;
   updated_at: number;
 }

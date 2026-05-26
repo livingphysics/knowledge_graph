@@ -84,14 +84,44 @@ async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
     .join('\n');
 }
 
+function tokenizeForCompare(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length >= 3) // drop short/common-noise tokens
+  );
+}
+
+function titleSimilarity(a: string, b: string): number {
+  const A = tokenizeForCompare(a);
+  const B = tokenizeForCompare(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let overlap = 0;
+  for (const t of A) if (B.has(t)) overlap++;
+  return overlap / Math.min(A.size, B.size); // 1.0 = full subset match
+}
+
 async function searchCrossrefForDoi(title: string): Promise<string | null> {
   if (title.split(/\s+/).length < 4) return null; // too short, prone to mismatch
   const q = encodeURIComponent(title);
-  const res = await fetchWithTimeout(`https://api.crossref.org/works?query.title=${q}&rows=1`);
+  const res = await fetchWithTimeout(`https://api.crossref.org/works?query.title=${q}&rows=3`);
   if (!res || !res.ok) return null;
   try {
-    const data = (await res.json()) as { message?: { items?: Array<{ DOI?: string }> } };
-    return data.message?.items?.[0]?.DOI ?? null;
+    const data = (await res.json()) as {
+      message?: {
+        items?: Array<{ DOI?: string; title?: string[] }>;
+      };
+    };
+    const items = data.message?.items ?? [];
+    // Accept only when the candidate's title clearly contains our title's tokens.
+    for (const item of items) {
+      const candidate = (item.title?.[0] ?? '').trim();
+      if (!candidate || !item.DOI) continue;
+      if (titleSimilarity(title, candidate) >= 0.8) return item.DOI;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -114,12 +144,15 @@ function bibtexMisc(node: NodeRecord): string {
 }
 
 export interface BibtexResult {
-  source: 'doi' | 'arxiv' | 'crossref-title' | 'fallback';
+  source: 'override' | 'doi' | 'arxiv' | 'crossref-title' | 'fallback';
   bibtex: string;
 }
 
 /** Best-effort BibTeX for a single reference node. Always returns something. */
 export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
+  if (node.bibtex_override && node.bibtex_override.trim().startsWith('@')) {
+    return { source: 'override', bibtex: node.bibtex_override.trim() };
+  }
   const id = extractIdentifier(node.url);
   if (id?.kind === 'doi') {
     const out = await fetchBibtexFromDoi(id.id);

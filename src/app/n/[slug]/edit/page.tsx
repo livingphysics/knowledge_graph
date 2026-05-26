@@ -33,6 +33,7 @@ export default async function EditNodePage({ params }: Props) {
       null;
 
     let pdf_sha256: string | null | undefined = undefined;
+    let bibtex_override: string | null | undefined = undefined;
     if (node!.type === 'reference') {
       const remove = formData.get('remove_pdf') === 'on';
       if (remove) pdf_sha256 = null;
@@ -45,9 +46,11 @@ export default async function EditNodePage({ params }: Props) {
           throw new Error('Failed to save PDF');
         }
       }
+      const rawOverride = String(formData.get('bibtex_override') ?? '').trim();
+      bibtex_override = rawOverride.length > 0 ? rawOverride : null;
     }
 
-    updateNode({ slug, title, body_md, url, pdf_sha256, authorIp: ip });
+    updateNode({ slug, title, body_md, url, pdf_sha256, bibtex_override, authorIp: ip });
     redirect(`/n/${slug}`);
   }
 
@@ -126,6 +129,24 @@ export default async function EditNodePage({ params }: Props) {
                     Remove current PDF
                   </label>
                 )}
+              </fieldset>
+              <fieldset className="flex flex-col gap-2 border border-neutral-700 [html.light_&]:border-neutral-300 rounded p-3">
+                <legend className="px-1 text-sm text-neutral-400 [html.light_&]:text-neutral-600">
+                  Custom BibTeX
+                </legend>
+                <div className="text-xs text-neutral-500">
+                  Paste a BibTeX entry to use it verbatim. Otherwise we try DOI / arXiv / Crossref
+                  title-search and fall back to a minimal{' '}
+                  <code className="px-1 rounded bg-neutral-800 [html.light_&]:bg-neutral-200">@misc</code>
+                  . Leave empty to clear an existing override.
+                </div>
+                <textarea
+                  name="bibtex_override"
+                  rows={6}
+                  defaultValue={node.bibtex_override ?? ''}
+                  placeholder="@article{key2024, ... }"
+                  className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 font-mono text-xs focus:outline-none focus:border-sky-500"
+                />
               </fieldset>
             </>
           )}
