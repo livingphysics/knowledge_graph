@@ -45,7 +45,9 @@ export const config = {
   matcher: [
     {
       source: '/((?!_next/static|_next/image|favicon.ico|pdf\\.worker\\.min\\.mjs).*)',
-      missing: [{ type: 'header', key: 'content-type', value: '(?i)multipart/form-data.*' }],
+      // Browsers consistently send lowercase here; no case-insensitive flag needed
+      // (JS regex doesn't support inline (?i) anyway).
+      missing: [{ type: 'header', key: 'content-type', value: 'multipart/form-data.*' }],
     },
   ],
 };
