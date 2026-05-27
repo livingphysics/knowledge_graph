@@ -111,22 +111,12 @@ export default async function NodePage({ params }: Props) {
       <HomeButton />
       <TopMenu />
       <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
-        <div className="flex items-center justify-between mb-3 text-sm text-neutral-400 [html.light_&]:text-neutral-600">
-          <span className="inline-flex items-center gap-1.5">
-            <NodeIcon type={node.type} className="w-4 h-4" />
+        <div className="flex items-start gap-2 mb-3 text-sm text-neutral-400 [html.light_&]:text-neutral-600">
+          <span className="flex-1 inline-flex items-center gap-1.5">
+            <NodeIcon type={node.type} className="w-4 h-4 shrink-0" />
             {typeLabel(node.type)}
           </span>
-          <div className="flex items-center gap-2 flex-wrap">
-            {node.type === 'reference' && (
-              <a
-                href={`/api/bibtex/${slug}`}
-                className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"
-                aria-label="Export BibTeX"
-              >
-                <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
-                BibTeX
-              </a>
-            )}
+          <div className="flex-1 flex items-center gap-2 flex-wrap justify-end">
             <Link
               href={`/graph?focus=${encodeURIComponent(slug)}`}
               className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"
@@ -142,6 +132,16 @@ export default async function NodePage({ params }: Props) {
               Edit
             </Link>
             <DeleteButton action={del} title={node.title} />
+            {node.type === 'reference' && (
+              <a
+                href={`/api/bibtex/${slug}`}
+                className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"
+                aria-label="Export BibTeX"
+              >
+                <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
+                BibTeX
+              </a>
+            )}
           </div>
         </div>
         <h1 className="text-4xl font-semibold mb-4">{node.title}</h1>
