@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { listNodes, type NodeRecord, type NodeType } from './nodes';
 import { slugify } from './slug';
 import { paths } from './db';
+import { siteTitle } from './site';
 
 const TYPE_ORDER: NodeType[] = ['question', 'thought', 'reference'];
 const TYPE_PLURAL: Record<NodeType, string> = {
@@ -48,7 +49,7 @@ function indexQmd(nodes: NodeRecord[]): string {
   const byType: Record<NodeType, NodeRecord[]> = { question: [], thought: [], reference: [] };
   for (const n of nodes) byType[n.type].push(n);
 
-  const lines: string[] = ['# Knowledge Graph Export', ''];
+  const lines: string[] = [`# ${siteTitle()} — Export`, ''];
   for (const t of TYPE_ORDER) {
     if (byType[t].length === 0) continue;
     lines.push(`## ${TYPE_PLURAL[t]}`, '');
@@ -62,12 +63,14 @@ function indexQmd(nodes: NodeRecord[]): string {
 
 function quartoYml(nodes: NodeRecord[]): string {
   const chapters = ['index.qmd', ...nodes.map((n) => `${n.slug}.qmd`)];
+  // JSON quoting is valid YAML and handles escaping safely for arbitrary titles.
+  const titleYaml = JSON.stringify(siteTitle());
   return [
     'project:',
     '  type: book',
     '',
     'book:',
-    '  title: "Knowledge Graph"',
+    `  title: ${titleYaml}`,
     '  chapters:',
     ...chapters.map((c) => `    - ${c}`),
     '',

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { siteTitle } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export default async function LoginPage({ searchParams }: Props) {
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
       <form action={login} className="w-full max-w-sm flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold mb-1">Knowledge Graph</h1>
+        <h1 className="text-2xl font-semibold mb-1">{siteTitle()}</h1>
         <p className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
           This site is password-protected.
         </p>

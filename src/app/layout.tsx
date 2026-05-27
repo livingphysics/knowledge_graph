@@ -1,10 +1,13 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { siteTitle, siteDescription } from '@/lib/site';
 
-export const metadata: Metadata = {
-  title: 'Knowledge Graph',
-  description: 'A collaborative knowledge graph of questions, thoughts, and references.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: siteTitle(),
+    description: siteDescription(),
+  };
+}
 
 // Run before hydration so dark mode never flashes.
 const themeBootstrap = `

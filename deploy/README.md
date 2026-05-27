@@ -182,6 +182,25 @@ use `rclone` to push to DigitalOcean Spaces.
 
 ---
 
+## Per-deployment branding
+
+Set the page title and description per-instance via the env file:
+
+```bash
+sudo install -m 600 -o kg -g kg /dev/null /etc/kg.env  # if not yet created
+sudo tee -a /etc/kg.env > /dev/null <<'EOF'
+SITE_TITLE=My Knowledge Graph
+SITE_DESCRIPTION=Notes & questions for the foo project.
+EOF
+sudo systemctl restart kg
+```
+
+Both fall back to the defaults (`Knowledge Graph` / its blurb) when unset.
+This affects:
+- the browser tab title
+- the `<h1>` on the home page and login page
+- the title of the Quarto export bundle (`_quarto.yml`) and its index page
+
 ## Password-gating the site (keep bots out)
 
 Set a single shared `SITE_PASSWORD` and the whole site (every page + every

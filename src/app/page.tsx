@@ -4,6 +4,7 @@ import BottomDock from '@/components/BottomDock';
 import NodeIcon from '@/components/NodeIcon';
 import ViewToggle, { type ViewMode } from '@/components/ViewToggle';
 import { listNodes } from '@/lib/nodes';
+import { siteTitle, siteDescription } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,9 @@ export default async function HomePage({ searchParams }: Props) {
     <>
       <TopMenu />
       <main className="max-w-3xl mx-auto px-6 pt-16 pb-32">
-        <h1 className="text-4xl font-semibold mb-2">Knowledge Graph</h1>
+        <h1 className="text-4xl font-semibold mb-2">{siteTitle()}</h1>
         <p className="text-neutral-400 [html.light_&]:text-neutral-600 mb-8">
-          A collaborative graph of questions, thoughts, and references. Anyone can contribute.
+          {siteDescription()}
         </p>
 
         {recent.length === 0 ? (
