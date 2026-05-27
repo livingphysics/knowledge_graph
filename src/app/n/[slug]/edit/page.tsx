@@ -122,7 +122,7 @@ export default async function EditNodePage({ params }: Props) {
                 )}
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-neutral-500">
-                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max 25MB)
+                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max 30MB)
                   </span>
                   <input
                     type="file"

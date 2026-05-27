@@ -116,7 +116,7 @@ export default async function NewNodePage({ searchParams }: Props) {
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
-                  PDF (optional, max 25MB)
+                  PDF (optional, max 30MB)
                 </span>
                 <input
                   type="file"
