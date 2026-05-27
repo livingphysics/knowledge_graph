@@ -6,6 +6,7 @@ import NodeIcon from '@/components/NodeIcon';
 import { getNode, updateNode, typeLabel } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
 import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
+import { requireAuth } from '@/lib/auth';
 import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,7 @@ export default async function EditNodePage({ params }: Props) {
 
   async function save(formData: FormData) {
     'use server';
+    await requireAuth();
     const title = String(formData.get('title') ?? '').trim();
     const body_md = String(formData.get('body_md') ?? '');
     const url = String(formData.get('url') ?? '').trim() || null;

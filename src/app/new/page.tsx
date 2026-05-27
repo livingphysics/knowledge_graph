@@ -6,6 +6,7 @@ import NodeIcon from '@/components/NodeIcon';
 import { createNode, typeLabel, type NodeType } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
 import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
+import { requireAuth } from '@/lib/auth';
 import MarkdownEditor from '@/components/MarkdownEditor';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,7 @@ interface Props {
 
 async function create(formData: FormData) {
   'use server';
+  await requireAuth();
   const type = String(formData.get('type') ?? '') as NodeType;
   if (!VALID.includes(type)) throw new Error('Invalid type');
   const title = String(formData.get('title') ?? '').trim();

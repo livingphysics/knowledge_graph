@@ -36,6 +36,16 @@ export async function middleware(req: NextRequest) {
 
 // Next already skips middleware for /_next/static and /_next/image. We also
 // exempt favicon and the PDF.js worker (which is fetched without our cookie).
+//
+// IMPORTANT: we also skip middleware for multipart/form-data requests because
+// Next 15.5.x's middleware buffers request bodies up to 10MB with no way to
+// raise the limit. Server actions that accept file uploads (/new, /n/[…]/edit)
+// must call requireAuth() from '@/lib/auth' to compensate.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|pdf\\.worker\\.min\\.mjs).*)'],
+  matcher: [
+    {
+      source: '/((?!_next/static|_next/image|favicon.ico|pdf\\.worker\\.min\\.mjs).*)',
+      missing: [{ type: 'header', key: 'content-type', value: '(?i)multipart/form-data.*' }],
+    },
+  ],
 };
