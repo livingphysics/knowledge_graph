@@ -8,6 +8,8 @@ const CONCURRENCY = 4;
 const ARXIV_MIN_INTERVAL_MS = 3500;
 // Semantic Scholar unauthenticated: 100 requests per 5 minutes ≈ 1/3s.
 const S2_MIN_INTERVAL_MS = 3500;
+// OpenAlex polite pool: 10/sec. Throttle at 5/sec to stay comfortably under.
+const OPENALEX_MIN_INTERVAL_MS = 200;
 
 function makeThrottle(minIntervalMs: number) {
   let nextAvailableAt = 0;
@@ -21,6 +23,7 @@ function makeThrottle(minIntervalMs: number) {
 
 const arxivThrottle = makeThrottle(ARXIV_MIN_INTERVAL_MS);
 const s2Throttle = makeThrottle(S2_MIN_INTERVAL_MS);
+const openAlexThrottle = makeThrottle(OPENALEX_MIN_INTERVAL_MS);
 
 interface Identifier {
   kind: 'doi' | 'arxiv';
@@ -184,6 +187,150 @@ function bibtexDoiMinimal(node: NodeRecord, doi: string): string {
   ].join('\n');
 }
 
+// --- OpenAlex --------------------------------------------------------------
+
+interface OpenAlexAuthor {
+  author?: { display_name?: string };
+}
+
+interface OpenAlexWork {
+  id?: string;
+  doi?: string | null;
+  title?: string | null;
+  display_name?: string | null;
+  publication_year?: number | null;
+  publication_date?: string | null;
+  type?: string | null;
+  type_crossref?: string | null;
+  authorships?: OpenAlexAuthor[];
+  host_venue?: { display_name?: string | null } | null;
+  primary_location?: { source?: { display_name?: string | null } | null } | null;
+  biblio?: {
+    volume?: string | null;
+    issue?: string | null;
+    first_page?: string | null;
+    last_page?: string | null;
+  } | null;
+}
+
+async function openAlexFetch(url: string): Promise<OpenAlexWork | null> {
+  await openAlexThrottle();
+  const res = await fetchWithTimeout(url);
+  if (!res || !res.ok) return null;
+  try {
+    return (await res.json()) as OpenAlexWork;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpenAlexByArxiv(arxivId: string): Promise<OpenAlexWork | null> {
+  // OpenAlex doesn't accept arXiv URLs/IDs directly — papers are only findable
+  // via their arXiv DOI (10.48550/arXiv.<id>), which arXiv started registering
+  // automatically around late 2022. Older papers will 404 and we fall through.
+  return openAlexFetch(
+    `https://api.openalex.org/works/https://doi.org/10.48550/arXiv.${encodeURIComponent(
+      arxivId
+    )}`
+  );
+}
+
+async function fetchOpenAlexByDoi(doi: string): Promise<OpenAlexWork | null> {
+  return openAlexFetch(
+    `https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`
+  );
+}
+
+async function fetchOpenAlexByTitle(title: string): Promise<OpenAlexWork | null> {
+  if (title.split(/\s+/).length < 4) return null;
+  await openAlexThrottle();
+  const url = `https://api.openalex.org/works?search=${encodeURIComponent(title)}&per_page=3`;
+  const res = await fetchWithTimeout(url);
+  if (!res || !res.ok) return null;
+  try {
+    const data = (await res.json()) as { results?: OpenAlexWork[] };
+    for (const w of data.results ?? []) {
+      const candidate = (w.title ?? w.display_name ?? '').trim();
+      if (titleSimilarity(title, candidate) >= 0.8) return w;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function entryTypeFor(type: string | null | undefined): string {
+  switch (type) {
+    case 'article':
+    case 'journal-article':
+      return '@article';
+    case 'book':
+    case 'monograph':
+      return '@book';
+    case 'book-chapter':
+      return '@inbook';
+    case 'proceedings-article':
+      return '@inproceedings';
+    default:
+      return '@misc';
+  }
+}
+
+function citationKey(authorLastName: string | undefined, year: number | undefined, fallback: string): string {
+  const a = (authorLastName ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (a) return `${a}${year ?? ''}`;
+  return fallback.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function bibtexFromOpenAlex(work: OpenAlexWork, opts: { node: NodeRecord; arxivId?: string }): string {
+  const title = work.title ?? work.display_name ?? opts.node.title;
+  const authors = (work.authorships ?? [])
+    .map((a) => a.author?.display_name ?? '')
+    .filter(Boolean);
+  const year =
+    work.publication_year ??
+    (work.publication_date ? Number(work.publication_date.slice(0, 4)) : undefined);
+  const venue =
+    work.primary_location?.source?.display_name ?? work.host_venue?.display_name ?? null;
+  const doi = (work.doi ?? '').replace(/^https?:\/\/doi\.org\//, '') || null;
+  const type = entryTypeFor(work.type ?? work.type_crossref);
+
+  // Pick the family name: "Smith, John" → "Smith"; "John Smith" → "Smith".
+  const firstAuthor = authors[0] ?? '';
+  const firstAuthorLast = firstAuthor.includes(',')
+    ? firstAuthor.split(',')[0].trim()
+    : firstAuthor.split(/\s+/).pop();
+  const key = citationKey(firstAuthorLast, year ?? undefined, opts.arxivId ?? opts.node.slug);
+
+  const lines: string[] = [`${type}{${key},`];
+  lines.push(`  title         = {${escapeBraces(title)}},`);
+  if (authors.length)
+    lines.push(`  author        = {${authors.map(escapeBraces).join(' and ')}},`);
+  if (year) lines.push(`  year          = {${year}},`);
+  if (venue) {
+    const field = type === '@article' ? 'journal' : type === '@inproceedings' ? 'booktitle' : 'publisher';
+    lines.push(`  ${field.padEnd(13)} = {${escapeBraces(venue)}},`);
+  }
+  if (work.biblio?.volume) lines.push(`  volume        = {${work.biblio.volume}},`);
+  if (work.biblio?.issue) lines.push(`  number        = {${work.biblio.issue}},`);
+  if (work.biblio?.first_page) {
+    const pages = work.biblio.last_page
+      ? `${work.biblio.first_page}--${work.biblio.last_page}`
+      : work.biblio.first_page;
+    lines.push(`  pages         = {${pages}},`);
+  }
+  if (doi) lines.push(`  doi           = {${doi}},`);
+  if (opts.arxivId) {
+    lines.push(`  eprint        = {${opts.arxivId}},`);
+    lines.push(`  archivePrefix = {arXiv},`);
+    lines.push(`  url           = {https://arxiv.org/abs/${opts.arxivId}},`);
+  } else if (doi) {
+    lines.push(`  url           = {https://doi.org/${doi}},`);
+  }
+  lines.push('}');
+  return lines.join('\n');
+}
+
 function tokenizeForCompare(s: string): Set<string> {
   return new Set(
     s
@@ -246,14 +393,18 @@ function bibtexMisc(node: NodeRecord): string {
 export interface BibtexResult {
   source:
     | 'override'
+    | 'openalex-doi'
     | 'doi'
     | 'doi-minimal'
+    | 'openalex-arxiv'
     | 'arxiv'
     | 'arxiv-s2'
     | 'arxiv-minimal'
+    | 'openalex-pdf'
     | 'arxiv-pdf'
     | 'arxiv-pdf-s2'
     | 'arxiv-pdf-minimal'
+    | 'openalex-title'
     | 'crossref-title'
     | 'fallback';
   bibtex: string;
@@ -266,18 +417,21 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
   }
   const id = extractIdentifier(node.url);
 
-  // Explicit identifier in URL → use API result if we get one, otherwise a minimal
-  // entry pointing at the known id. Crucially we do NOT fall through to fuzzy title
-  // search when we already know what paper this is.
+  // Explicit identifier in URL: try OpenAlex first (cleanest structured metadata),
+  // then provider-specific APIs, then a minimal entry. Crucially we never fall
+  // through to fuzzy title search when we already know what paper this is.
   if (id?.kind === 'doi') {
+    const oa = await fetchOpenAlexByDoi(id.id);
+    if (oa) return { source: 'openalex-doi', bibtex: bibtexFromOpenAlex(oa, { node }) };
     const out = await fetchBibtexFromDoi(id.id);
     if (out) return { source: 'doi', bibtex: out };
     return { source: 'doi-minimal', bibtex: bibtexDoiMinimal(node, id.id) };
   }
   if (id?.kind === 'arxiv') {
+    const oa = await fetchOpenAlexByArxiv(id.id);
+    if (oa) return { source: 'openalex-arxiv', bibtex: bibtexFromOpenAlex(oa, { node, arxivId: id.id }) };
     const out = await fetchBibtexFromArxiv(id.id);
     if (out) return { source: 'arxiv', bibtex: out };
-    // arxiv down/throttled — try Semantic Scholar (different infra)
     const s2 = await fetchBibtexFromSemanticScholar(id.id);
     if (s2) return { source: 'arxiv-s2', bibtex: s2 };
     return { source: 'arxiv-minimal', bibtex: bibtexArxivMinimal(node, id.id) };
@@ -293,17 +447,20 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
       arxivId = node.pdf_arxiv_id || null;
     }
     if (arxivId) {
+      const oa = await fetchOpenAlexByArxiv(arxivId);
+      if (oa) return { source: 'openalex-pdf', bibtex: bibtexFromOpenAlex(oa, { node, arxivId }) };
       const out = await fetchBibtexFromArxiv(arxivId);
       if (out) return { source: 'arxiv-pdf', bibtex: out };
       const s2 = await fetchBibtexFromSemanticScholar(arxivId);
       if (s2) return { source: 'arxiv-pdf-s2', bibtex: s2 };
-      // Same logic: PDF gave us a known arxiv id; don't fall through to title search.
       return { source: 'arxiv-pdf-minimal', bibtex: bibtexArxivMinimal(node, arxivId) };
     }
   }
 
-  // Last resort: fuzzy title search via Crossref. Only reached when we have no
-  // identifier from URL or PDF.
+  // No identifier from URL or PDF — fall back to title search.
+  // OpenAlex first (richer metadata), Crossref as backup.
+  const oa = await fetchOpenAlexByTitle(node.title);
+  if (oa) return { source: 'openalex-title', bibtex: bibtexFromOpenAlex(oa, { node }) };
   const doi = await searchCrossrefForDoi(node.title);
   if (doi) {
     const out = await fetchBibtexFromDoi(doi);
