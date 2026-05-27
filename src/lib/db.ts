@@ -73,6 +73,7 @@ function init(db: Database.Database) {
   // Idempotent column additions for existing DBs.
   ensureColumn(db, 'nodes', 'bibtex_override', 'TEXT');
   ensureColumn(db, 'nodes', 'pdf_arxiv_id', 'TEXT');
+  ensureColumn(db, 'nodes', 'pinned_at', 'INTEGER');
 }
 
 function ensureColumn(

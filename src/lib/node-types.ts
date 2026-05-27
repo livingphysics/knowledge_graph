@@ -15,6 +15,8 @@ export interface NodeRecord {
    * `null` = haven't parsed yet; `''` = parsed and found no id; otherwise the id.
    */
   pdf_arxiv_id: string | null;
+  /** Timestamp when the node was pinned (sticks to the top of the home list). Null = unpinned. */
+  pinned_at: number | null;
   created_at: number;
   updated_at: number;
 }

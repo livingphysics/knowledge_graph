@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import Link from 'next/link';
-import { Network, Download } from 'lucide-react';
+import { Network, Download, Pin, PinOff } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
 import HomeButton from '@/components/HomeButton';
 import BottomDock from '@/components/BottomDock';
@@ -12,10 +12,11 @@ import DeleteButton from '@/components/DeleteButton';
 import PdfPreview from '@/components/PdfPreview';
 import ReactionBar from '@/components/ReactionBar';
 import CommentsSection from '@/components/CommentsSection';
-import { getNode, deleteNode, typeLabel } from '@/lib/nodes';
+import { getNode, deleteNode, togglePin, typeLabel } from '@/lib/nodes';
 import { renderMarkdown } from '@/lib/markdown';
 import { listComments, addComment, deleteComment } from '@/lib/comments';
 import { listReactions } from '@/lib/reactions';
+import { requireAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +82,14 @@ export default async function NodePage({ params }: Props) {
     redirect('/');
   }
 
+  async function pin() {
+    'use server';
+    await requireAuth();
+    togglePin(slug);
+    revalidatePath(`/n/${slug}`);
+    revalidatePath('/');
+  }
+
   async function addCommentAction(formData: FormData) {
     'use server';
     const body = String(formData.get('body') ?? '');
@@ -117,6 +126,25 @@ export default async function NodePage({ params }: Props) {
             {typeLabel(node.type)}
           </span>
           <div className="flex-1 flex items-center gap-2 flex-wrap justify-end">
+            <form action={pin}>
+              <button
+                type="submit"
+                aria-label={node.pinned_at ? 'Unpin from home' : 'Pin to home'}
+                title={node.pinned_at ? 'Pinned — click to unpin' : 'Pin to home'}
+                className={`px-2 py-1 rounded border inline-flex items-center gap-1.5 ${
+                  node.pinned_at
+                    ? 'border-amber-700/60 text-amber-400 hover:bg-amber-950/30 [html.light_&]:border-amber-400 [html.light_&]:text-amber-700 [html.light_&]:hover:bg-amber-50'
+                    : 'border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200'
+                }`}
+              >
+                {node.pinned_at ? (
+                  <PinOff className="w-3.5 h-3.5" strokeWidth={1.75} />
+                ) : (
+                  <Pin className="w-3.5 h-3.5" strokeWidth={1.75} />
+                )}
+                {node.pinned_at ? 'Pinned' : 'Pin'}
+              </button>
+            </form>
             <Link
               href={`/graph?focus=${encodeURIComponent(slug)}`}
               className="px-2 py-1 rounded border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 inline-flex items-center gap-1.5"

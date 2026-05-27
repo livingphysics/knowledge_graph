@@ -34,17 +34,29 @@ export function getNode(slug: string): NodeWithBody | null {
   return { ...row, body_md: body };
 }
 
-export function listNodes(opts: { type?: NodeType; limit?: number } = {}): NodeWithPreview[] {
+export function listNodes(
+  opts: { type?: NodeType; pinned?: boolean; limit?: number } = {}
+): NodeWithPreview[] {
   const db = getDb();
   const limit = opts.limit ?? 200;
-  const rows = (opts.type
-    ? db
-        .prepare('SELECT * FROM nodes WHERE type = ? ORDER BY updated_at DESC LIMIT ?')
-        .all(opts.type, limit)
-    : db
-        .prepare('SELECT * FROM nodes ORDER BY updated_at DESC LIMIT ?')
-        .all(limit)) as NodeRecord[];
+  const where: string[] = [];
+  const args: (string | number)[] = [];
+  if (opts.type) {
+    where.push('type = ?');
+    args.push(opts.type);
+  }
+  if (opts.pinned === true) where.push('pinned_at IS NOT NULL');
+  if (opts.pinned === false) where.push('pinned_at IS NULL');
 
+  // Pinned listings sort by when they were pinned; everything else by recency.
+  const orderBy = opts.pinned === true ? 'pinned_at DESC' : 'updated_at DESC';
+  const sql =
+    `SELECT * FROM nodes` +
+    (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+    ` ORDER BY ${orderBy} LIMIT ?`;
+  args.push(limit);
+
+  const rows = db.prepare(sql).all(...args) as NodeRecord[];
   return rows.map((n) => {
     let body = '';
     try {
@@ -52,6 +64,18 @@ export function listNodes(opts: { type?: NodeType; limit?: number } = {}): NodeW
     } catch {}
     return { ...n, preview: makePreview(body, 200) };
   });
+}
+
+/** Flip the `pinned_at` state for a node. Returns the new pinned-ness, or null if no such node. */
+export function togglePin(slug: string): { pinned: boolean } | null {
+  const db = getDb();
+  const row = db.prepare('SELECT pinned_at FROM nodes WHERE slug = ?').get(slug) as
+    | { pinned_at: number | null }
+    | undefined;
+  if (!row) return null;
+  const next = row.pinned_at === null ? Date.now() : null;
+  db.prepare('UPDATE nodes SET pinned_at = ? WHERE slug = ?').run(next, slug);
+  return { pinned: next !== null };
 }
 
 export type RelatedByType = Record<NodeType, RelatedItem[]>;
