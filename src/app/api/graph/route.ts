@@ -8,6 +8,7 @@ interface GraphNodeRow {
   slug: string;
   type: NodeType;
   title: string;
+  in_degree: number;
 }
 
 interface GraphNode extends GraphNodeRow {
@@ -21,7 +22,20 @@ interface GraphEdge {
 
 export async function GET() {
   const db = getDb();
-  const rows = db.prepare('SELECT slug, type, title FROM nodes').all() as GraphNodeRow[];
+  const rows = db
+    .prepare(
+      `SELECT
+         n.slug, n.type, n.title,
+         COALESCE(d.in_degree, 0) AS in_degree
+       FROM nodes n
+       LEFT JOIN (
+         SELECT to_slug AS slug, COUNT(*) AS in_degree
+         FROM links
+         GROUP BY to_slug
+       ) d ON d.slug = n.slug`
+    )
+    .all() as GraphNodeRow[];
+
   const nodes: GraphNode[] = rows.map((n) => {
     let body = '';
     try {

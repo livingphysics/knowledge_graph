@@ -21,6 +21,12 @@ interface GraphNode {
   type: keyof typeof COLORS;
   title: string;
   preview: string;
+  in_degree: number;
+}
+
+/** Maps in-degree → node diameter in px. Log-scaled so hubs stand out without dwarfing the rest. */
+function sizeForDegree(d: number): number {
+  return Math.round(14 + 5 * Math.log2(1 + Math.max(0, d)));
 }
 
 interface ApiData {
@@ -77,7 +83,12 @@ export default function GraphView() {
 
         const elements: ElementDefinition[] = [
           ...data.nodes.map((n) => ({
-            data: { id: n.slug, label: n.title, type: n.type },
+            data: {
+              id: n.slug,
+              label: n.title,
+              type: n.type,
+              in_degree: n.in_degree,
+            },
           })),
           ...data.edges.map((e) => ({
             data: { id: `${e.source}--${e.target}`, source: e.source, target: e.target },
@@ -104,8 +115,8 @@ export default function GraphView() {
                 'text-margin-y': 6,
                 'text-wrap': 'wrap',
                 'text-max-width': '140px',
-                width: 18,
-                height: 18,
+                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0),
+                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0),
                 'border-width': 0,
                 'transition-property': 'width height border-width border-color',
                 'transition-duration': 150,
@@ -114,8 +125,8 @@ export default function GraphView() {
             {
               selector: 'node:active',
               style: {
-                width: 24,
-                height: 24,
+                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
+                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
                 'border-width': 2,
                 'border-color': '#fafafa',
               },
@@ -123,8 +134,8 @@ export default function GraphView() {
             {
               selector: 'node.hovered',
               style: {
-                width: 22,
-                height: 22,
+                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
+                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
                 'border-width': 2,
                 'border-color': '#fafafa',
               },
@@ -132,8 +143,8 @@ export default function GraphView() {
             {
               selector: 'node.focused',
               style: {
-                width: 26,
-                height: 26,
+                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
+                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
                 'border-width': 3,
                 'border-color': '#fafafa',
               },
