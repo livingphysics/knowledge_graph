@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import cytoscape, {
+  type Core,
+  type ElementDefinition,
+  type NodeSingular,
+} from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import edgehandles from 'cytoscape-edgehandles';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -103,7 +107,7 @@ export default function GraphView() {
             {
               selector: 'node',
               style: {
-                'background-color': (n) =>
+                'background-color': (n: NodeSingular) =>
                   COLORS[n.data('type') as keyof typeof COLORS] ?? '#888',
                 label: 'data(label)',
                 color: '#fafafa',
@@ -115,8 +119,8 @@ export default function GraphView() {
                 'text-margin-y': 6,
                 'text-wrap': 'wrap',
                 'text-max-width': '140px',
-                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0),
-                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0),
+                width: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0),
+                height: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0),
                 'border-width': 0,
                 'transition-property': 'width height border-width border-color',
                 'transition-duration': 150,
@@ -125,8 +129,8 @@ export default function GraphView() {
             {
               selector: 'node:active',
               style: {
-                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
-                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
+                width: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
+                height: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,
                 'border-width': 2,
                 'border-color': '#fafafa',
               },
@@ -134,8 +138,8 @@ export default function GraphView() {
             {
               selector: 'node.hovered',
               style: {
-                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
-                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
+                width: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
+                height: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 4,
                 'border-width': 2,
                 'border-color': '#fafafa',
               },
@@ -143,8 +147,8 @@ export default function GraphView() {
             {
               selector: 'node.focused',
               style: {
-                width: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
-                height: (n) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
+                width: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
+                height: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 8,
                 'border-width': 3,
                 'border-color': '#fafafa',
               },
