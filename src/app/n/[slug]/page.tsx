@@ -172,7 +172,11 @@ export default async function NodePage({ params }: Props) {
             )}
           </div>
         </div>
-        <h1 className="text-4xl font-semibold mb-4">{node.title}</h1>
+        <h1
+          className={`text-4xl font-semibold mb-4 ${node.type === 'reference' ? 'italic' : ''}`}
+        >
+          {node.title}
+        </h1>
         {node.url && (
           <a
             href={node.url}

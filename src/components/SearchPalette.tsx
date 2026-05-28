@@ -148,7 +148,9 @@ export default function SearchPalette() {
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full shrink-0 ${TYPE_DOT[s.type]}`} />
-                  <span className="flex-1 truncate text-sm">{s.title}</span>
+                  <span className={`flex-1 truncate text-sm ${s.type === 'reference' ? 'italic' : ''}`}>
+                    {s.title}
+                  </span>
                   <span className="text-[11px] text-neutral-500 font-mono truncate max-w-[40%]">
                     {s.slug}
                   </span>

@@ -100,10 +100,14 @@ function CardsList({ items }: { items: NodeWithPreview[] }) {
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-3">
-                <div className="font-medium line-clamp-2 inline-flex items-center gap-1.5">
+                <div
+                  className={`font-medium line-clamp-2 inline-flex items-center gap-1.5 ${
+                    n.type === 'reference' ? 'italic' : ''
+                  }`}
+                >
                   {n.pinned_at && (
                     <Pin
-                      className="w-3 h-3 text-amber-500 shrink-0"
+                      className="w-3 h-3 text-amber-500 shrink-0 not-italic"
                       strokeWidth={2}
                       aria-label="pinned"
                     />
@@ -140,7 +144,9 @@ function CompactList({ items }: { items: NodeWithPreview[] }) {
               type={n.type}
               className="w-4 h-4 text-neutral-400 [html.light_&]:text-neutral-600 shrink-0"
             />
-            <span className="truncate">{n.title}</span>
+            <span className={`truncate ${n.type === 'reference' ? 'italic' : ''}`}>
+              {n.title}
+            </span>
             {n.pinned_at && (
               <Pin
                 className="w-3 h-3 text-amber-500 shrink-0 ml-auto"

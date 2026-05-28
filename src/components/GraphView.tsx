@@ -127,6 +127,10 @@ export default function GraphView() {
               },
             },
             {
+              selector: 'node[type="reference"]',
+              style: { 'font-style': 'italic' },
+            },
+            {
               selector: 'node:active',
               style: {
                 width: (n: NodeSingular) => sizeForDegree((n.data('in_degree') as number) ?? 0) + 6,

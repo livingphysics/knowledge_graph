@@ -70,7 +70,9 @@ export default function RelatedCard({ type, items }: Props) {
                 className="block px-4 py-3 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-100"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="font-medium line-clamp-2">{n.title}</div>
+                  <div className={`font-medium line-clamp-2 ${n.type === 'reference' ? 'italic' : ''}`}>
+                    {n.title}
+                  </div>
                   <div className="text-[11px] text-neutral-500 whitespace-nowrap pt-0.5">
                     {formatDate(n.created_at)}
                   </div>
@@ -105,7 +107,9 @@ function Header({ type, item }: { type: NodeType; item: RelatedItem }) {
             {formatDate(item.created_at)}
           </div>
         </div>
-        <div className="font-medium line-clamp-2">{item.title}</div>
+        <div className={`font-medium line-clamp-2 ${type === 'reference' ? 'italic' : ''}`}>
+          {item.title}
+        </div>
         {item.preview && (
           <p className="mt-1 text-sm text-neutral-400 [html.light_&]:text-neutral-600 line-clamp-3">
             {item.preview}

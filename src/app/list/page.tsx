@@ -68,7 +68,7 @@ export default async function ListPage({ searchParams }: Props) {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="font-medium line-clamp-2">{n.title}</div>
+                      <div className={`font-medium line-clamp-2 ${n.type === 'reference' ? 'italic' : ''}`}>{n.title}</div>
                       <div className="text-[11px] text-neutral-500 whitespace-nowrap pt-0.5">
                         {formatDate(n.created_at)}
                       </div>
