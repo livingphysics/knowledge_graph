@@ -39,6 +39,23 @@ export function addLinkToMarkdown(body: string, targetSlug: string): string {
   return `${body}${prefix}<!--links\n${back}\n-->\n`;
 }
 
+/**
+ * Rewrites every wikilink whose target resolves to `oldSlug` so it points at `newSlug`.
+ * Handles all three forms:
+ *   [[old-slug]]            → [[new-slug]]
+ *   [[old-slug|Label]]      → [[new-slug|Label]]
+ *   [[Old Title]]           → [[new-slug|Old Title]]   (preserves the readable text)
+ */
+export function renameWikilinkTarget(body: string, oldSlug: string, newSlug: string): string {
+  return body.replace(WIKILINK_RE, (match, target: string, label?: string) => {
+    const t = target.trim();
+    if (slugify(t) !== oldSlug) return match;
+    if (label != null) return `[[${newSlug}|${label}]]`;
+    if (t === oldSlug) return `[[${newSlug}]]`;
+    return `[[${newSlug}|${t}]]`;
+  });
+}
+
 /** Remove every occurrence of `[[targetSlug]]` from `body`. Cleans up emptied hidden blocks. */
 export function removeLinkFromMarkdown(body: string, targetSlug: string): string {
   const escaped = targetSlug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

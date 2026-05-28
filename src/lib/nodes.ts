@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { getDb, paths } from './db';
 import { uniqueSlug, slugify } from './slug';
-import { uniqueSlugsFromMarkdown } from './wikilinks';
+import { uniqueSlugsFromMarkdown, renameWikilinkTarget } from './wikilinks';
 
 // Re-exported from the DB-free leaf so existing imports keep working.
 export {
@@ -245,6 +245,67 @@ export function setNodePdfArxivId(slug: string, arxivId: string | null): void {
   getDb()
     .prepare('UPDATE nodes SET pdf_arxiv_id = ? WHERE slug = ?')
     .run(arxivId, slug);
+}
+
+/**
+ * If the node's current title now slugifies to something other than its slug,
+ * rename it everywhere: nodes PK + all FK tables, the markdown file, and every
+ * [[wikilink]] in other nodes that points to it. Returns the (possibly new) slug.
+ *
+ * Old URLs are intentionally not preserved — they will 404 after a rename.
+ */
+export function reslugFromTitle(oldSlug: string): string {
+  const db = getDb();
+  const row = db.prepare('SELECT title FROM nodes WHERE slug = ?').get(oldSlug) as
+    | { title: string }
+    | undefined;
+  if (!row) return oldSlug;
+
+  const desired = slugify(row.title);
+  if (desired === oldSlug) return oldSlug; // nothing to do
+  const newSlug = uniqueSlug(desired); // collision-suffixes against other nodes
+
+  // Nodes whose bodies contain a wikilink to oldSlug (so we can rewrite their text).
+  const referrers = db
+    .prepare('SELECT DISTINCT from_slug FROM links WHERE to_slug = ?')
+    .all(oldSlug) as { from_slug: string }[];
+
+  // Move the slug across every table in one transaction. The FKs lack ON UPDATE
+  // CASCADE, so defer the checks until commit (by which point all rows are consistent).
+  db.transaction(() => {
+    db.pragma('defer_foreign_keys = ON');
+    db.prepare('UPDATE nodes SET slug = ? WHERE slug = ?').run(newSlug, oldSlug);
+    db.prepare('UPDATE links SET from_slug = ? WHERE from_slug = ?').run(newSlug, oldSlug);
+    db.prepare('UPDATE links SET to_slug = ? WHERE to_slug = ?').run(newSlug, oldSlug);
+    db.prepare('UPDATE revisions SET node_slug = ? WHERE node_slug = ?').run(newSlug, oldSlug);
+    db.prepare('UPDATE comments SET node_slug = ? WHERE node_slug = ?').run(newSlug, oldSlug);
+    db.prepare('UPDATE reactions SET node_slug = ? WHERE node_slug = ?').run(newSlug, oldSlug);
+  })();
+
+  // Rename the markdown file.
+  try {
+    fs.renameSync(paths.nodeFile(oldSlug), paths.nodeFile(newSlug));
+  } catch {}
+
+  // Rewrite [[oldSlug]] → [[newSlug]] in every referrer (and the node itself, in
+  // case of a self-link). Referrers that were the renamed node now live at newSlug.
+  const filesToFix = new Set<string>([newSlug]);
+  for (const r of referrers) {
+    filesToFix.add(r.from_slug === oldSlug ? newSlug : r.from_slug);
+  }
+  for (const fileSlug of filesToFix) {
+    const p = paths.nodeFile(fileSlug);
+    let body: string;
+    try {
+      body = fs.readFileSync(p, 'utf8');
+    } catch {
+      continue;
+    }
+    const next = renameWikilinkTarget(body, oldSlug, newSlug);
+    if (next !== body) fs.writeFileSync(p, next, 'utf8');
+  }
+
+  return newSlug;
 }
 
 export interface DeleteResult {

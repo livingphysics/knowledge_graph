@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import TopMenu from '@/components/TopMenu';
 import HomeButton from '@/components/HomeButton';
 import NodeIcon from '@/components/NodeIcon';
-import { getNode, updateNode, typeLabel } from '@/lib/nodes';
+import { getNode, updateNode, reslugFromTitle, typeLabel } from '@/lib/nodes';
 import { savePdf, UploadError } from '@/lib/uploads';
 import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
 import { requireAuth } from '@/lib/auth';
@@ -61,7 +61,9 @@ export default async function EditNodePage({ params }: Props) {
     }
 
     updateNode({ slug, title, body_md, url, pdf_sha256, pdf_arxiv_id, bibtex_override, authorIp: ip });
-    redirect(`/n/${slug}`);
+    // If the new title changes the slug, rename everywhere and redirect to the new URL.
+    const finalSlug = reslugFromTitle(slug);
+    redirect(`/n/${finalSlug}`);
   }
 
   return (
