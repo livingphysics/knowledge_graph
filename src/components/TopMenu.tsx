@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   Menu,
   Home,
+  Search,
   HelpCircle,
   Lightbulb,
   FileText,
@@ -52,6 +53,23 @@ export default function TopMenu() {
           className="absolute right-0 mt-2 w-56 rounded-lg border border-neutral-700 [html.light_&]:border-neutral-300 bg-neutral-900/97 [html.light_&]:bg-white/97 backdrop-blur shadow-xl overflow-hidden"
           role="menu"
         >
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              window.dispatchEvent(new Event('kg:open-search'));
+            }}
+            role="menuitem"
+            className="w-full flex items-center justify-between gap-2.5 px-3 py-2 text-sm hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-100"
+          >
+            <span className="flex items-center gap-2.5">
+              <Search className="w-4 h-4 text-neutral-400 [html.light_&]:text-neutral-600" strokeWidth={1.75} />
+              Search
+            </span>
+            <kbd className="text-[10px] text-neutral-500 border border-neutral-700 [html.light_&]:border-neutral-300 rounded px-1">
+              ⌘K
+            </kbd>
+          </button>
           <MenuLink href="/" Icon={Home} label="Home" onClick={() => setOpen(false)} />
           <MenuLink href="/list?type=question" Icon={HelpCircle} label="All questions" onClick={() => setOpen(false)} />
           <MenuLink href="/list?type=thought" Icon={Lightbulb} label="All thoughts" onClick={() => setOpen(false)} />

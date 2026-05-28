@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { siteTitle, siteDescription } from '@/lib/site';
+import SearchPalette from '@/components/SearchPalette';
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen">
+        <SearchPalette />
+        {children}
+      </body>
     </html>
   );
 }
