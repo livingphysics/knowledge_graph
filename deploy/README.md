@@ -268,47 +268,103 @@ yes). Auto-renewal runs every 12 hours via the `certbot.timer` systemd unit.
 
 ---
 
-## Running multiple instances
+## Running multiple instances on one droplet
 
-Each droplet has a completely independent `/srv/kg/data/` directory containing
-its own SQLite DB, markdown files, and uploaded PDFs. There is no sync, no
-shared state — the only thing two instances share is the git repo they pull
-code from.
+You can host several independent graphs on a single droplet. The code is shared
+(one checkout in `/srv/kg`, built once); only the **data dir**, **env file**,
+and **hostname** differ per instance. There is still no shared state between
+instances — separate SQLite DBs, separate files, separate processes.
 
-To run a second instance:
+### Layout
 
-1. Provision another droplet.
-2. Follow the **First-time deploy** steps above. Same `REPO=…` value, same
-   commands.
-3. (Optional) Give the second instance a different domain / subdomain
-   (`staging.your.domain.com`, `aspen.your.domain.com`) and run certbot for it.
-
-When you push code, both droplets need `update.sh` run independently:
-
-```bash
-ssh dave@<droplet-a>; sudo /srv/kg/deploy/update.sh
-ssh dave@<droplet-b>; sudo /srv/kg/deploy/update.sh
+```
+/srv/kg/                  ← single git clone: code + node_modules + .next build
+/srv/kg-data/<name>/      ← per-instance data (app.db, nodes/, uploads/)
+/etc/kg/<name>.env        ← per-instance env (PORT, KG_DATA_DIR, SITE_TITLE, SITE_PASSWORD…)
 ```
 
-If you want to copy data *from* one instance *to* another (e.g., promote
-staging to production), the simplest path is:
+Instances run under the systemd **template unit** `kg@.service`, so `kg@alpha`
+serves the `alpha` instance, `kg@beta` serves `beta`, etc. Each is its own Node
+process on its own port — a crash in one only restarts that one.
+
+### Add an instance
+
+One command does data dir + env file + service + nginx vhost:
 
 ```bash
-# On the source droplet
-sudo /srv/kg/deploy/backup.sh
-sudo cp /var/backups/kg/kg-LATEST.tar.gz /tmp/
-sudo chown dave:dave /tmp/kg-LATEST.tar.gz
-
-# From your local machine
-scp dave@source-ip:/tmp/kg-LATEST.tar.gz /tmp/
-scp /tmp/kg-LATEST.tar.gz dave@dest-ip:/tmp/
-
-# On the destination droplet
-sudo systemctl stop kg
-sudo tar -xzf /tmp/kg-LATEST.tar.gz -C /srv/kg/
-sudo chown -R kg:kg /srv/kg/data
-sudo systemctl start kg
+# sudo ./deploy/new-instance.sh <name> <port> [server_name]
+sudo /srv/kg/deploy/new-instance.sh alpha 3001 alpha.example.org
+sudo /srv/kg/deploy/new-instance.sh beta  3002 beta.example.org
 ```
+
+Pick a distinct port per instance (3001, 3002, …). Then enable HTTPS for each
+host (printed at the end of the script):
+
+```bash
+sudo certbot --nginx -d alpha.example.org
+```
+
+Tip: a wildcard DNS record (`*.example.org → droplet IP`) means new instances
+need no DNS change — only the nginx vhost the script writes, plus certbot.
+
+After creating an instance, edit its config any time:
+
+```bash
+sudo $EDITOR /etc/kg/alpha.env   # SITE_TITLE, SITE_DESCRIPTION, SITE_PASSWORD…
+sudo systemctl restart kg@alpha
+```
+
+### Per-instance operations
+
+| Task | Command |
+|---|---|
+| Status | `sudo systemctl status kg@alpha` |
+| Logs | `sudo journalctl -u kg@alpha -f` |
+| Restart | `sudo systemctl restart kg@alpha` |
+| Stop / disable | `sudo systemctl disable --now kg@alpha` |
+
+### Deploying code to all instances
+
+`update.sh` pulls + builds once and restarts the default service **and** every
+`kg@*` instance:
+
+```bash
+sudo /srv/kg/deploy/update.sh
+```
+
+### Backups
+
+`backup.sh` snapshots every data dir it finds — the legacy `/srv/kg/data`
+(reported as `default`) and each `/srv/kg-data/<name>/` — into its own tarball
+under `/var/backups/kg/`. The daily cron from earlier needs no change.
+
+### Relationship to the original single-droplet setup
+
+Nothing about the original layout changes: with no `KG_DATA_DIR` set, the app
+defaults to `<cwd>/data` and the standalone `kg.service` keeps serving
+`/srv/kg/data` on port 3000 exactly as before. The template unit is purely
+additive — adopt it for new graphs, or migrate the existing one by moving its
+data into `/srv/kg-data/default` and running `new-instance.sh default 3000`.
+
+### Copying data between instances (e.g. promote staging → prod)
+
+```bash
+sudo /srv/kg/deploy/backup.sh                       # writes kg-<name>-<ts>.tar.gz
+sudo systemctl stop kg@dest
+sudo rm -rf /srv/kg-data/dest && sudo mkdir -p /srv/kg-data/dest
+sudo tar -xzf /var/backups/kg/kg-src-<ts>.tar.gz -C /tmp
+sudo mv /tmp/src/* /srv/kg-data/dest/            # tarball unpacks to the source dir name
+sudo chown -R kg:kg /srv/kg-data/dest
+sudo systemctl start kg@dest
+```
+
+### When to use separate droplets instead
+
+One droplet per graph is still the right call if you need hard failure
+isolation (one box dying must not take the others down), strict security
+separation between graphs, or wildly different traffic profiles. The
+multi-instance model trades some of that isolation for far less to manage
+(one IP, one nginx, one OS, one build).
 
 ---
 

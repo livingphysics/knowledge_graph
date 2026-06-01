@@ -1,0 +1,26 @@
+[Unit]
+# Template unit: one Knowledge Graph instance per %i (e.g. kg@alpha, kg@beta).
+# All instances share the single code checkout in /srv/kg; they differ only by
+# their data dir (/srv/kg-data/%i) and per-instance env file (/etc/kg/%i.env).
+Description=Knowledge Graph (Next.js) — instance %i
+After=network.target
+
+[Service]
+Type=simple
+User=kg
+Group=kg
+WorkingDirectory=/srv/kg
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+# PORT, KG_DATA_DIR, SITE_TITLE, SITE_PASSWORD, … all come from the env file.
+# No dash prefix: an instance must not start without its config.
+EnvironmentFile=/etc/kg/%i.env
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/srv/kg-data/%i
+
+[Install]
+WantedBy=multi-user.target

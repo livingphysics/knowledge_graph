@@ -2,7 +2,9 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// Each instance points at its own data dir via KG_DATA_DIR; unset = single-instance
+// default of <cwd>/data (backwards compatible with the original single-droplet setup).
+const DATA_DIR = process.env.KG_DATA_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
