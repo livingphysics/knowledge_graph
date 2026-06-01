@@ -35,10 +35,11 @@ export function getNode(slug: string): NodeWithBody | null {
 }
 
 export function listNodes(
-  opts: { type?: NodeType; pinned?: boolean; limit?: number } = {}
+  opts: { type?: NodeType; pinned?: boolean; limit?: number; offset?: number } = {}
 ): NodeWithPreview[] {
   const db = getDb();
   const limit = opts.limit ?? 200;
+  const offset = Math.max(0, opts.offset ?? 0);
   const where: string[] = [];
   const args: (string | number)[] = [];
   if (opts.type) {
@@ -53,8 +54,8 @@ export function listNodes(
   const sql =
     `SELECT * FROM nodes` +
     (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
-    ` ORDER BY ${orderBy} LIMIT ?`;
-  args.push(limit);
+    ` ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+  args.push(limit, offset);
 
   const rows = db.prepare(sql).all(...args) as NodeRecord[];
   return rows.map((n) => {
