@@ -411,7 +411,7 @@ export interface BibtexResult {
 }
 
 /** Best-effort BibTeX for a single reference node. Always returns something. */
-export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
+export async function bibtexFor(graph: string, node: NodeRecord): Promise<BibtexResult> {
   if (node.bibtex_override && node.bibtex_override.trim().startsWith('@')) {
     return { source: 'override', bibtex: node.bibtex_override.trim() };
   }
@@ -441,8 +441,8 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
   if (node.pdf_sha256) {
     let arxivId: string | null;
     if (node.pdf_arxiv_id === null) {
-      arxivId = await extractArxivIdFromPdf(node.pdf_sha256);
-      setNodePdfArxivId(node.slug, arxivId ?? '');
+      arxivId = await extractArxivIdFromPdf(graph, node.pdf_sha256);
+      setNodePdfArxivId(graph, node.slug, arxivId ?? '');
     } else {
       arxivId = node.pdf_arxiv_id || null;
     }
@@ -470,12 +470,12 @@ export async function bibtexFor(node: NodeRecord): Promise<BibtexResult> {
 }
 
 /** Concatenated BibTeX for every reference node. */
-export async function bibtexForAllReferences(): Promise<string> {
-  const refs = listNodes({ type: 'reference', limit: 1000 });
+export async function bibtexForAllReferences(graph: string): Promise<string> {
+  const refs = listNodes(graph, { type: 'reference', limit: 1000 });
   const out: string[] = [];
   for (let i = 0; i < refs.length; i += CONCURRENCY) {
     const chunk = refs.slice(i, i + CONCURRENCY);
-    const batch = await Promise.all(chunk.map((r) => bibtexFor(r)));
+    const batch = await Promise.all(chunk.map((r) => bibtexFor(graph, r)));
     out.push(...batch.map((b) => b.bibtex));
   }
   return out.join('\n\n') + (out.length ? '\n' : '');

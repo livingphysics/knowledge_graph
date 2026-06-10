@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import { HelpCircle, Lightbulb, FileText, Plus, type LucideIcon } from 'lucide-react';
+import { gPath } from '@/lib/gpath';
 
 interface Props {
+  graph: string;
   /** If present, new nodes will be pre-linked back to this slug. */
   fromSlug?: string;
 }
 
-export default function BottomDock({ fromSlug }: Props) {
+export default function BottomDock({ graph, fromSlug }: Props) {
   const q = (type: string) =>
-    `/new?type=${type}${fromSlug ? `&from=${encodeURIComponent(fromSlug)}` : ''}`;
+    gPath(graph, `/new?type=${type}${fromSlug ? `&from=${encodeURIComponent(fromSlug)}` : ''}`);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20 flex justify-center pointer-events-none">

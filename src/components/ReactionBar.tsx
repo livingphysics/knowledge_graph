@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { SmilePlus } from 'lucide-react';
+import { gPath } from '@/lib/gpath';
 
 interface ReactionCount {
   emoji: string;
@@ -10,11 +11,12 @@ interface ReactionCount {
 }
 
 interface Props {
+  graph: string;
   slug: string;
   initial: ReactionCount[];
 }
 
-export default function ReactionBar({ slug, initial }: Props) {
+export default function ReactionBar({ graph, slug, initial }: Props) {
   const [reactions, setReactions] = useState(initial);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -47,7 +49,7 @@ export default function ReactionBar({ slug, initial }: Props) {
     );
     startTransition(async () => {
       try {
-        const res = await fetch('/api/reactions', {
+        const res = await fetch(gPath(graph, '/api/reactions'), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ slug, emoji }),

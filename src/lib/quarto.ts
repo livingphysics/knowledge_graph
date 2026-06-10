@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { listNodes, type NodeRecord, type NodeType } from './nodes';
 import { slugify } from './slug';
 import { paths } from './db';
+import { getGraph } from './registry';
 import { siteTitle } from './site';
 
 const TYPE_ORDER: NodeType[] = ['question', 'thought', 'reference'];
@@ -45,11 +46,11 @@ function transformBody(body: string, slugToTitle: Map<string, string>): string {
   return out.trimEnd() + '\n';
 }
 
-function indexQmd(nodes: NodeRecord[]): string {
+function indexQmd(title: string, nodes: NodeRecord[]): string {
   const byType: Record<NodeType, NodeRecord[]> = { question: [], thought: [], reference: [] };
   for (const n of nodes) byType[n.type].push(n);
 
-  const lines: string[] = [`# ${siteTitle()} — Export`, ''];
+  const lines: string[] = [`# ${title} — Export`, ''];
   for (const t of TYPE_ORDER) {
     if (byType[t].length === 0) continue;
     lines.push(`## ${TYPE_PLURAL[t]}`, '');
@@ -61,10 +62,10 @@ function indexQmd(nodes: NodeRecord[]): string {
   return lines.join('\n');
 }
 
-function quartoYml(nodes: NodeRecord[]): string {
+function quartoYml(title: string, nodes: NodeRecord[]): string {
   const chapters = ['index.qmd', ...nodes.map((n) => `${n.slug}.qmd`)];
   // JSON quoting is valid YAML and handles escaping safely for arbitrary titles.
-  const titleYaml = JSON.stringify(siteTitle());
+  const titleYaml = JSON.stringify(title);
   return [
     'project:',
     '  type: book',
@@ -103,22 +104,23 @@ function readmeMd(): string {
 }
 
 /** Builds the complete Quarto bundle and returns it as a single ZIP buffer. */
-export async function buildQuartoZip(): Promise<Buffer> {
-  const nodes = listNodes({ limit: 10_000 });
+export async function buildQuartoZip(graph: string): Promise<Buffer> {
+  const title = getGraph(graph)?.title || siteTitle();
+  const nodes = listNodes(graph, { limit: 10_000 });
   const slugToTitle = new Map(nodes.map((n) => [n.slug, n.title]));
 
   const zip = new JSZip();
   const root = zip.folder('knowledge-graph');
   if (!root) throw new Error('zip folder creation failed');
 
-  root.file('_quarto.yml', quartoYml(nodes));
-  root.file('index.qmd', indexQmd(nodes));
+  root.file('_quarto.yml', quartoYml(title, nodes));
+  root.file('index.qmd', indexQmd(title, nodes));
   root.file('README.md', readmeMd());
 
   for (const n of nodes) {
     let body = '';
     try {
-      body = fs.readFileSync(paths.nodeFile(n.slug), 'utf8');
+      body = fs.readFileSync(paths.nodeFile(graph, n.slug), 'utf8');
     } catch {}
     const qmd = `${frontmatter(n)}\n\n${transformBody(body, slugToTitle)}`;
     root.file(`${n.slug}.qmd`, qmd);

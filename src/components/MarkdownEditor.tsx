@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { gPath } from '@/lib/gpath';
 
 interface Suggestion {
   slug: string;
@@ -15,6 +16,7 @@ interface Active {
 }
 
 interface Props {
+  graph: string;
   name: string;
   defaultValue?: string;
   rows?: number;
@@ -27,7 +29,7 @@ const TYPE_DOT: Record<Suggestion['type'], string> = {
   reference: 'bg-emerald-500',
 };
 
-export default function MarkdownEditor({ name, defaultValue, rows = 14, className }: Props) {
+export default function MarkdownEditor({ graph, name, defaultValue, rows = 14, className }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [active, setActive] = useState<Active | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -60,7 +62,9 @@ export default function MarkdownEditor({ name, defaultValue, rows = 14, classNam
     }
     const ctrl = new AbortController();
     const id = setTimeout(() => {
-      fetch(`/api/suggest?q=${encodeURIComponent(active.query)}`, { signal: ctrl.signal })
+      fetch(gPath(graph, `/api/suggest?q=${encodeURIComponent(active.query)}`), {
+        signal: ctrl.signal,
+      })
         .then((r) => (r.ok ? r.json() : []))
         .then((data: Suggestion[]) => setSuggestions(data))
         .catch(() => {});
@@ -69,7 +73,7 @@ export default function MarkdownEditor({ name, defaultValue, rows = 14, classNam
       clearTimeout(id);
       ctrl.abort();
     };
-  }, [active?.query]);
+  }, [active?.query, graph]);
 
   function insert(slug: string) {
     const ta = ref.current;

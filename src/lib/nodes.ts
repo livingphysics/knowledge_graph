@@ -23,21 +23,22 @@ export function ipHash(ip: string | null | undefined): string | null {
   return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
 }
 
-export function getNode(slug: string): NodeWithBody | null {
-  const db = getDb();
+export function getNode(graph: string, slug: string): NodeWithBody | null {
+  const db = getDb(graph);
   const row = db.prepare('SELECT * FROM nodes WHERE slug = ?').get(slug) as NodeRecord | undefined;
   if (!row) return null;
   let body = '';
   try {
-    body = fs.readFileSync(paths.nodeFile(slug), 'utf8');
+    body = fs.readFileSync(paths.nodeFile(graph, slug), 'utf8');
   } catch {}
   return { ...row, body_md: body };
 }
 
 export function listNodes(
+  graph: string,
   opts: { type?: NodeType; pinned?: boolean; limit?: number; offset?: number } = {}
 ): NodeWithPreview[] {
-  const db = getDb();
+  const db = getDb(graph);
   const limit = opts.limit ?? 200;
   const offset = Math.max(0, opts.offset ?? 0);
   const where: string[] = [];
@@ -61,15 +62,15 @@ export function listNodes(
   return rows.map((n) => {
     let body = '';
     try {
-      body = fs.readFileSync(paths.nodeFile(n.slug), 'utf8');
+      body = fs.readFileSync(paths.nodeFile(graph, n.slug), 'utf8');
     } catch {}
     return { ...n, preview: makePreview(body, 200) };
   });
 }
 
 /** Flip the `pinned_at` state for a node. Returns the new pinned-ness, or null if no such node. */
-export function togglePin(slug: string): { pinned: boolean } | null {
-  const db = getDb();
+export function togglePin(graph: string, slug: string): { pinned: boolean } | null {
+  const db = getDb(graph);
   const row = db.prepare('SELECT pinned_at FROM nodes WHERE slug = ?').get(slug) as
     | { pinned_at: number | null }
     | undefined;
@@ -98,8 +99,8 @@ export function makePreview(md: string, maxChars = 280): string {
   return stripped.length > maxChars ? stripped.slice(0, maxChars).trim() + '…' : stripped;
 }
 
-export function getRelatedByType(slug: string): RelatedByType {
-  const db = getDb();
+export function getRelatedByType(graph: string, slug: string): RelatedByType {
+  const db = getDb(graph);
   const rows = db
     .prepare(
       `SELECT DISTINCT n.* FROM nodes n
@@ -115,7 +116,7 @@ export function getRelatedByType(slug: string): RelatedByType {
   for (const n of rows) {
     let body = '';
     try {
-      body = fs.readFileSync(paths.nodeFile(n.slug), 'utf8');
+      body = fs.readFileSync(paths.nodeFile(graph, n.slug), 'utf8');
     } catch {}
     groups[n.type].push({ ...n, preview: makePreview(body) });
   }
@@ -135,11 +136,11 @@ export interface CreateNodeInput {
   linkFromSlug?: string | null;
 }
 
-export function createNode(input: CreateNodeInput): NodeRecord {
-  const db = getDb();
+export function createNode(graph: string, input: CreateNodeInput): NodeRecord {
+  const db = getDb(graph);
   const now = Date.now();
   const title = input.title.trim() || 'Untitled';
-  const slug = uniqueSlug(title);
+  const slug = uniqueSlug(graph, title);
   let body = input.body_md ?? '';
   if (input.linkFromSlug) {
     const back = `[[${input.linkFromSlug}]]`;
@@ -174,11 +175,11 @@ export function createNode(input: CreateNodeInput): NodeRecord {
        VALUES (?, ?, ?, ?, ?)`
     ).run(slug, body, title, ipHash(input.authorIp), now);
 
-    refreshLinks(slug, body);
+    refreshLinks(graph, slug, body);
   });
   tx();
 
-  fs.writeFileSync(paths.nodeFile(slug), body, 'utf8');
+  fs.writeFileSync(paths.nodeFile(graph, slug), body, 'utf8');
   return db.prepare('SELECT * FROM nodes WHERE slug = ?').get(slug) as NodeRecord;
 }
 
@@ -200,8 +201,8 @@ export interface UpdateNodeInput {
   authorIp?: string | null;
 }
 
-export function updateNode(input: UpdateNodeInput): NodeRecord {
-  const db = getDb();
+export function updateNode(graph: string, input: UpdateNodeInput): NodeRecord {
+  const db = getDb(graph);
   const now = Date.now();
   const existing = db.prepare('SELECT * FROM nodes WHERE slug = ?').get(input.slug) as
     | NodeRecord
@@ -233,17 +234,17 @@ export function updateNode(input: UpdateNodeInput): NodeRecord {
        VALUES (?, ?, ?, ?, ?)`
     ).run(input.slug, input.body_md, title, ipHash(input.authorIp), now);
 
-    refreshLinks(input.slug, input.body_md);
+    refreshLinks(graph, input.slug, input.body_md);
   });
   tx();
 
-  fs.writeFileSync(paths.nodeFile(input.slug), input.body_md, 'utf8');
+  fs.writeFileSync(paths.nodeFile(graph, input.slug), input.body_md, 'utf8');
   return db.prepare('SELECT * FROM nodes WHERE slug = ?').get(input.slug) as NodeRecord;
 }
 
 /** Writes only the pdf_arxiv_id cache field — used for lazy backfill from bibtexFor. */
-export function setNodePdfArxivId(slug: string, arxivId: string | null): void {
-  getDb()
+export function setNodePdfArxivId(graph: string, slug: string, arxivId: string | null): void {
+  getDb(graph)
     .prepare('UPDATE nodes SET pdf_arxiv_id = ? WHERE slug = ?')
     .run(arxivId, slug);
 }
@@ -255,8 +256,8 @@ export function setNodePdfArxivId(slug: string, arxivId: string | null): void {
  *
  * Old URLs are intentionally not preserved — they will 404 after a rename.
  */
-export function reslugFromTitle(oldSlug: string): string {
-  const db = getDb();
+export function reslugFromTitle(graph: string, oldSlug: string): string {
+  const db = getDb(graph);
   const row = db.prepare('SELECT title FROM nodes WHERE slug = ?').get(oldSlug) as
     | { title: string }
     | undefined;
@@ -264,7 +265,7 @@ export function reslugFromTitle(oldSlug: string): string {
 
   const desired = slugify(row.title);
   if (desired === oldSlug) return oldSlug; // nothing to do
-  const newSlug = uniqueSlug(desired); // collision-suffixes against other nodes
+  const newSlug = uniqueSlug(graph, desired); // collision-suffixes against other nodes
 
   // Nodes whose bodies contain a wikilink to oldSlug (so we can rewrite their text).
   const referrers = db
@@ -285,7 +286,7 @@ export function reslugFromTitle(oldSlug: string): string {
 
   // Rename the markdown file.
   try {
-    fs.renameSync(paths.nodeFile(oldSlug), paths.nodeFile(newSlug));
+    fs.renameSync(paths.nodeFile(graph, oldSlug), paths.nodeFile(graph, newSlug));
   } catch {}
 
   // Rewrite [[oldSlug]] → [[newSlug]] in every referrer (and the node itself, in
@@ -295,7 +296,7 @@ export function reslugFromTitle(oldSlug: string): string {
     filesToFix.add(r.from_slug === oldSlug ? newSlug : r.from_slug);
   }
   for (const fileSlug of filesToFix) {
-    const p = paths.nodeFile(fileSlug);
+    const p = paths.nodeFile(graph, fileSlug);
     let body: string;
     try {
       body = fs.readFileSync(p, 'utf8');
@@ -314,8 +315,8 @@ export interface DeleteResult {
   pdf_removed: boolean;
 }
 
-export function deleteNode(slug: string): DeleteResult {
-  const db = getDb();
+export function deleteNode(graph: string, slug: string): DeleteResult {
+  const db = getDb(graph);
   const row = db.prepare('SELECT pdf_sha256 FROM nodes WHERE slug = ?').get(slug) as
     | { pdf_sha256: string | null }
     | undefined;
@@ -327,7 +328,7 @@ export function deleteNode(slug: string): DeleteResult {
   })();
 
   try {
-    fs.unlinkSync(paths.nodeFile(slug));
+    fs.unlinkSync(paths.nodeFile(graph, slug));
   } catch {}
 
   let pdf_removed = false;
@@ -337,7 +338,7 @@ export function deleteNode(slug: string): DeleteResult {
       .get(row.pdf_sha256);
     if (!stillReferenced) {
       try {
-        fs.unlinkSync(paths.uploadFile(row.pdf_sha256));
+        fs.unlinkSync(paths.uploadFile(graph, row.pdf_sha256));
         pdf_removed = true;
       } catch {}
     }
@@ -346,8 +347,8 @@ export function deleteNode(slug: string): DeleteResult {
   return { deleted: true, pdf_removed };
 }
 
-function refreshLinks(slug: string, body: string): void {
-  const db = getDb();
+function refreshLinks(graph: string, slug: string, body: string): void {
+  const db = getDb(graph);
   db.prepare('DELETE FROM links WHERE from_slug = ?').run(slug);
   const targets = uniqueSlugsFromMarkdown(body).filter((t) => t !== slug);
   const insert = db.prepare(

@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Search } from 'lucide-react';
+import { gPath } from '@/lib/gpath';
 
 interface Suggestion {
   slug: string;
@@ -16,8 +17,16 @@ const TYPE_DOT: Record<Suggestion['type'], string> = {
   reference: 'bg-emerald-500',
 };
 
+/** Pull the current graph out of the URL, e.g. /g/alpha/n/foo → "alpha". */
+function graphFromPath(pathname: string | null): string | null {
+  const m = pathname?.match(/^\/g\/([^/]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 export default function SearchPalette() {
   const router = useRouter();
+  const pathname = usePathname();
+  const graph = graphFromPath(pathname);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Suggestion[]>([]);
@@ -39,13 +48,15 @@ export default function SearchPalette() {
         el?.tagName === 'INPUT' ||
         el?.tagName === 'TEXTAREA' ||
         el?.isContentEditable === true;
+      // Search only works within a graph (it queries that graph's nodes).
+      if (!graph) return;
       if ((e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing && !open)) {
         e.preventDefault();
         setOpen(true);
       }
     }
     function onOpenEvent() {
-      setOpen(true);
+      if (graph) setOpen(true);
     }
     document.addEventListener('keydown', onKey);
     window.addEventListener('kg:open-search', onOpenEvent);
@@ -53,7 +64,7 @@ export default function SearchPalette() {
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('kg:open-search', onOpenEvent);
     };
-  }, [open]);
+  }, [open, graph]);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -61,10 +72,10 @@ export default function SearchPalette() {
 
   // Live results (debounced). Empty query → recent nodes (the API's default).
   useEffect(() => {
-    if (!open) return;
+    if (!open || !graph) return;
     const ctrl = new AbortController();
     const id = setTimeout(() => {
-      fetch(`/api/suggest?q=${encodeURIComponent(query)}`, { signal: ctrl.signal })
+      fetch(gPath(graph, `/api/suggest?q=${encodeURIComponent(query)}`), { signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : []))
         .then((data: Suggestion[]) => {
           setResults(data);
@@ -76,11 +87,11 @@ export default function SearchPalette() {
       clearTimeout(id);
       ctrl.abort();
     };
-  }, [query, open]);
+  }, [query, open, graph]);
 
   function go(s: Suggestion) {
     close();
-    router.push(`/n/${s.slug}`);
+    if (graph) router.push(gPath(graph, `/n/${s.slug}`));
   }
 
   function onKeyDown(e: React.KeyboardEvent) {

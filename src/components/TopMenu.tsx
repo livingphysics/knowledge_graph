@@ -12,11 +12,13 @@ import {
   Clock,
   Network,
   Download,
+  LayoutGrid,
   type LucideIcon,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import { gPath } from '@/lib/gpath';
 
-export default function TopMenu() {
+export default function TopMenu({ graph }: { graph: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -70,20 +72,21 @@ export default function TopMenu() {
               ⌘K
             </kbd>
           </button>
-          <MenuLink href="/" Icon={Home} label="Home" onClick={() => setOpen(false)} />
-          <MenuLink href="/list?type=question" Icon={HelpCircle} label="All questions" onClick={() => setOpen(false)} />
-          <MenuLink href="/list?type=thought" Icon={Lightbulb} label="All thoughts" onClick={() => setOpen(false)} />
-          <MenuLink href="/list?type=reference" Icon={FileText} label="All references" onClick={() => setOpen(false)} />
-          <MenuLink href="/list" Icon={Clock} label="Recent" onClick={() => setOpen(false)} />
-          <MenuLink href="/graph" Icon={Network} label="Graph view" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph)} Icon={Home} label="Home" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph, '/list?type=question')} Icon={HelpCircle} label="All questions" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph, '/list?type=thought')} Icon={Lightbulb} label="All thoughts" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph, '/list?type=reference')} Icon={FileText} label="All references" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph, '/list')} Icon={Clock} label="Recent" onClick={() => setOpen(false)} />
+          <MenuLink href={gPath(graph, '/graph')} Icon={Network} label="Graph view" onClick={() => setOpen(false)} />
           <div className="border-t border-neutral-800 [html.light_&]:border-neutral-200" />
           <MenuLink
-            href="/api/quarto"
+            href={gPath(graph, '/api/quarto')}
             Icon={Download}
             label="Export Quarto (.zip)"
             onClick={() => setOpen(false)}
             external
           />
+          <MenuLink href="/" Icon={LayoutGrid} label="All graphs" onClick={() => setOpen(false)} />
           <div className="border-t border-neutral-800 [html.light_&]:border-neutral-200 px-3 py-2 flex justify-between items-center">
             <span className="text-xs text-neutral-500">Theme</span>
             <ThemeToggle />

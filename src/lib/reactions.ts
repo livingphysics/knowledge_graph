@@ -16,8 +16,12 @@ export function isValidEmoji(e: string): e is ReactionEmoji {
   return VALID.has(e);
 }
 
-export function listReactions(slug: string, ip: string | null | undefined): ReactionCount[] {
-  const db = getDb();
+export function listReactions(
+  graph: string,
+  slug: string,
+  ip: string | null | undefined
+): ReactionCount[] {
+  const db = getDb(graph);
   const myHash = ipHash(ip) ?? '';
   const rows = db
     .prepare(
@@ -42,12 +46,13 @@ export function listReactions(slug: string, ip: string | null | undefined): Reac
 }
 
 export function toggleReaction(
+  graph: string,
   slug: string,
   emoji: string,
   ip: string | null | undefined
 ): { added: boolean } {
   if (!isValidEmoji(emoji)) throw new Error(`invalid emoji: ${emoji}`);
-  const db = getDb();
+  const db = getDb(graph);
   const myHash = ipHash(ip) ?? 'no-ip';
   const exists = db
     .prepare(

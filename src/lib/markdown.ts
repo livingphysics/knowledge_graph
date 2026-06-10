@@ -10,7 +10,7 @@ import { getDb } from './db';
 
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
-function remarkWikilinks(existingSlugs: Set<string>) {
+function remarkWikilinks(graph: string, existingSlugs: Set<string>) {
   return () => (tree: Root) => {
     visit(tree, 'text', (node: Text, index, parent: Parent | null) => {
       if (!parent || index == null) return;
@@ -31,7 +31,7 @@ function remarkWikilinks(existingSlugs: Set<string>) {
         const missing = !existingSlugs.has(slug);
         parts.push({
           type: 'link',
-          url: `/n/${slug}`,
+          url: `/g/${graph}/n/${slug}`,
           data: {
             hProperties: {
               className: `wikilink${missing ? ' missing' : ''}`,
@@ -53,8 +53,8 @@ function remarkWikilinks(existingSlugs: Set<string>) {
   };
 }
 
-export async function renderMarkdown(md: string): Promise<string> {
-  const db = getDb();
+export async function renderMarkdown(graph: string, md: string): Promise<string> {
+  const db = getDb(graph);
   const rows = db.prepare('SELECT slug FROM nodes').all() as { slug: string }[];
   const existing = new Set(rows.map((r) => r.slug));
 
@@ -63,7 +63,7 @@ export async function renderMarkdown(md: string): Promise<string> {
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(remarkWikilinks(existing))
+    .use(remarkWikilinks(graph, existing))
     .use(remarkRehype)
     .use(rehypeStringify)
     .process(cleaned);

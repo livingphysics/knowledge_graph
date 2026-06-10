@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import NodeIcon from './NodeIcon';
 import { typeLabel, type NodeType, type RelatedItem } from '@/lib/node-types';
+import { gPath } from '@/lib/gpath';
 
 const DATE_FMT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -17,11 +18,12 @@ const CARD_CHROME =
   'rounded-lg border border-neutral-800 [html.light_&]:border-neutral-200 overflow-hidden bg-neutral-900/40 [html.light_&]:bg-neutral-100/60';
 
 interface Props {
+  graph: string;
   type: NodeType;
   items: RelatedItem[];
 }
 
-export default function RelatedCard({ type, items }: Props) {
+export default function RelatedCard({ graph, type, items }: Props) {
   const top = items[0];
   const rest = items.slice(1);
   const [open, setOpen] = useState(false);
@@ -30,7 +32,7 @@ export default function RelatedCard({ type, items }: Props) {
   if (rest.length === 0) {
     return (
       <Link
-        href={`/n/${top.slug}`}
+        href={gPath(graph, `/n/${top.slug}`)}
         className={`${CARD_CHROME} block px-4 py-3 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-200/60`}
       >
         <Header type={type} item={top} />
@@ -43,7 +45,7 @@ export default function RelatedCard({ type, items }: Props) {
     <div className={CARD_CHROME}>
       <div className="flex items-stretch">
         <Link
-          href={`/n/${top.slug}`}
+          href={gPath(graph, `/n/${top.slug}`)}
           className="flex-1 min-w-0 px-4 py-3 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-200/60"
         >
           <Header type={type} item={top} />
@@ -66,7 +68,7 @@ export default function RelatedCard({ type, items }: Props) {
           {rest.map((n) => (
             <li key={n.slug}>
               <Link
-                href={`/n/${n.slug}`}
+                href={gPath(graph, `/n/${n.slug}`)}
                 className="block px-4 py-3 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-100"
               >
                 <div className="flex items-start justify-between gap-3">
