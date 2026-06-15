@@ -86,6 +86,13 @@ export default function GraphView({ graph }: { graph: string }) {
 
         const nodeBySlug = new Map(data.nodes.map((n) => [n.slug, n]));
 
+        // Defensive: never feed Cytoscape an edge whose endpoint isn't a node —
+        // it throws on init and the whole graph fails to render. (The API also
+        // filters these, but a stray edge must not be able to crash the view.)
+        const validEdges = data.edges.filter(
+          (e) => nodeBySlug.has(e.source) && nodeBySlug.has(e.target)
+        );
+
         const elements: ElementDefinition[] = [
           ...data.nodes.map((n) => ({
             data: {
@@ -95,7 +102,7 @@ export default function GraphView({ graph }: { graph: string }) {
               in_degree: n.in_degree,
             },
           })),
-          ...data.edges.map((e) => ({
+          ...validEdges.map((e) => ({
             data: { id: `${e.source}--${e.target}`, source: e.source, target: e.target },
           })),
         ];

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HelpCircle, Lightbulb, Trash2 } from 'lucide-react';
 import type { Comment } from '@/lib/comments';
 import { gPath } from '@/lib/gpath';
+import SubmitButton from './SubmitButton';
 
 const DATE_FMT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -118,12 +119,12 @@ export default function CommentsSection({ graph, slug, comments, addAction, dele
           className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 text-sm focus:outline-none focus:border-sky-500"
         />
         <div className="flex justify-end">
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Posting…"
             className="px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-sm"
           >
             Post comment
-          </button>
+          </SubmitButton>
         </div>
       </form>
     </section>

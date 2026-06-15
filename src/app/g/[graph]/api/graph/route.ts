@@ -45,12 +45,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ graph: 
     return { ...n, preview: makePreview(body, 160) };
   });
 
+  // Only edges whose BOTH endpoints are real nodes. `links.to_slug` has no FK,
+  // so it can dangle — from missing wikilinks ([[not-yet-created]]) or from a
+  // referrer still pointing at a since-deleted node. Such edges would reference
+  // a node id Cytoscape doesn't have, crashing the graph on init.
   const edges = db
     .prepare(
       `SELECT DISTINCT
          CASE WHEN from_slug < to_slug THEN from_slug ELSE to_slug END AS source,
          CASE WHEN from_slug < to_slug THEN to_slug   ELSE from_slug END AS target
-       FROM links`
+       FROM links
+       WHERE from_slug IN (SELECT slug FROM nodes)
+         AND to_slug   IN (SELECT slug FROM nodes)`
     )
     .all() as GraphEdge[];
 

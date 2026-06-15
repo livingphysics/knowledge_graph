@@ -1,6 +1,7 @@
 import NodeIcon from './NodeIcon';
 import MarkdownEditor from './MarkdownEditor';
 import CancelBackButton from './CancelBackButton';
+import SubmitButton from './SubmitButton';
 import { typeLabel, type NodeType } from '@/lib/node-types';
 
 interface Props {
@@ -99,12 +100,12 @@ export default function NewNodeForm({
         </label>
 
         <div className="flex gap-2">
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Creating…"
             className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white"
           >
             Create
-          </button>
+          </SubmitButton>
           {cancelHref ? (
             <a
               href={cancelHref}

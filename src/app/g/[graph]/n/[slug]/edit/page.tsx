@@ -9,6 +9,7 @@ import { extractArxivIdFromPdf } from '@/lib/pdf-arxiv';
 import { requireAuth } from '@/lib/auth';
 import { gPath } from '@/lib/gpath';
 import MarkdownEditor from '@/components/MarkdownEditor';
+import SubmitButton from '@/components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -172,9 +173,9 @@ export default async function EditNodePage({ params }: Props) {
           </label>
 
           <div className="flex gap-2">
-            <button type="submit" className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white">
+            <SubmitButton pendingLabel="Saving…" className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white">
               Save
-            </button>
+            </SubmitButton>
             <a
               href={gPath(graph, `/n/${slug}`)}
               className="px-4 py-2 rounded border border-neutral-700 [html.light_&]:border-neutral-300"

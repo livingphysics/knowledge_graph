@@ -10,6 +10,7 @@ import { ipHash } from '@/lib/nodes';
 import { gPath } from '@/lib/gpath';
 import { siteTitle, siteDescription } from '@/lib/site';
 import ThemeToggle from '@/components/ThemeToggle';
+import SubmitButton from '@/components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,9 +129,9 @@ export default async function PortalPage({ searchParams }: Props) {
             />
           </label>
           <div>
-            <button type="submit" className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white">
+            <SubmitButton pendingLabel="Creating…" className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white">
               Create graph
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </section>
