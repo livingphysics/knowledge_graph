@@ -1,8 +1,12 @@
+'use client';
+
+import { useRef } from 'react';
 import NodeIcon from './NodeIcon';
 import MarkdownEditor from './MarkdownEditor';
 import CancelBackButton from './CancelBackButton';
 import SubmitButton from './SubmitButton';
 import { typeLabel, type NodeType } from '@/lib/node-types';
+import { gPath } from '@/lib/gpath';
 
 interface Props {
   graph: string;
@@ -18,7 +22,7 @@ interface Props {
 }
 
 export default function NewNodeForm({
-  graph: _graph,
+  graph,
   type,
   fromSlug,
   initialTitle,
@@ -28,6 +32,51 @@ export default function NewNodeForm({
   bodyRows = 14,
   inModal = false,
 }: Props) {
+  // Guards for the duplicate-title confirmation gate:
+  //  - confirmedRef: set once we've decided to proceed, so the re-fired submit passes through.
+  //  - checkingRef: blocks re-entry while the existence check is in flight (double-click).
+  const confirmedRef = useRef(false);
+  const checkingRef = useRef(false);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (confirmedRef.current) {
+      confirmedRef.current = false;
+      return; // let this (programmatic) submit through to the server action
+    }
+    if (checkingRef.current) {
+      e.preventDefault();
+      return;
+    }
+    e.preventDefault();
+    const form = e.currentTarget;
+    const titleEl = form.elements.namedItem('title') as HTMLInputElement | null;
+    const title = (titleEl?.value ?? '').trim();
+    if (!title) return; // native `required` validation handles the empty case
+
+    checkingRef.current = true;
+    let proceed = true;
+    try {
+      const res = await fetch(gPath(graph, `/api/exists?title=${encodeURIComponent(title)}`));
+      if (res.ok) {
+        const data = (await res.json()) as { exists: boolean; existingTitle: string | null };
+        if (data.exists) {
+          proceed = window.confirm(
+            `An entry called “${data.existingTitle ?? title}” already exists. Create a duplicate anyway?`
+          );
+        }
+      }
+    } catch {
+      // If the check fails, don't block creation — fall through and submit.
+    } finally {
+      checkingRef.current = false;
+    }
+
+    if (proceed) {
+      confirmedRef.current = true;
+      form.requestSubmit();
+    }
+  }
+
   return (
     <>
       <h1
@@ -42,7 +91,7 @@ export default function NewNodeForm({
         </p>
       )}
 
-      <form action={action} className="flex flex-col gap-4 mt-4">
+      <form action={action} onSubmit={onSubmit} className="flex flex-col gap-4 mt-4">
         <input type="hidden" name="type" value={type} />
         <input type="hidden" name="from" value={fromSlug} />
         {/* honeypot — humans don't see this */}
@@ -96,7 +145,7 @@ export default function NewNodeForm({
           <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
             Body (markdown — use [[other-node]] to link; autocomplete pops up)
           </span>
-          <MarkdownEditor graph={_graph} name="body_md" defaultValue={prefilledBody} rows={bodyRows} />
+          <MarkdownEditor graph={graph} name="body_md" defaultValue={prefilledBody} rows={bodyRows} />
         </label>
 
         <div className="flex gap-2">
