@@ -10,6 +10,8 @@ import { requireAuth } from '@/lib/auth';
 import { gPath } from '@/lib/gpath';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import SubmitButton from '@/components/SubmitButton';
+import PdfFileInput from '@/components/PdfFileInput';
+import { MAX_PDF_MB } from '@/lib/limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,14 +130,9 @@ export default async function EditNodePage({ params }: Props) {
                 )}
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-neutral-500">
-                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max 30MB)
+                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max {MAX_PDF_MB}MB)
                   </span>
-                  <input
-                    type="file"
-                    name="pdf"
-                    accept="application/pdf,.pdf"
-                    className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-sky-700 file:text-white hover:file:bg-sky-600 file:cursor-pointer"
-                  />
+                  <PdfFileInput name="pdf" />
                 </label>
                 {node.pdf_sha256 && (
                   <label className="flex items-center gap-2 text-sm text-neutral-400 [html.light_&]:text-neutral-600">

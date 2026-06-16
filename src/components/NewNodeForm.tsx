@@ -5,8 +5,10 @@ import NodeIcon from './NodeIcon';
 import MarkdownEditor from './MarkdownEditor';
 import CancelBackButton from './CancelBackButton';
 import SubmitButton from './SubmitButton';
+import PdfFileInput from './PdfFileInput';
 import { typeLabel, type NodeType } from '@/lib/node-types';
 import { gPath } from '@/lib/gpath';
+import { MAX_PDF_MB } from '@/lib/limits';
 
 interface Props {
   graph: string;
@@ -129,14 +131,9 @@ export default function NewNodeForm({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
-                PDF (optional, max 30MB)
+                PDF (optional, max {MAX_PDF_MB}MB)
               </span>
-              <input
-                type="file"
-                name="pdf"
-                accept="application/pdf,.pdf"
-                className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 text-sm file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-sky-700 file:text-white hover:file:bg-sky-600 file:cursor-pointer"
-              />
+              <PdfFileInput name="pdf" />
             </label>
           </>
         )}

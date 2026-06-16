@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { paths } from './db';
+import { MAX_PDF_BYTES } from './limits';
 
-export const MAX_PDF_BYTES = 30 * 1024 * 1024; // 30MB (matches middleware + server-action limit)
+export { MAX_PDF_BYTES };
 const PDF_MAGIC = Buffer.from('%PDF');
 
 export class UploadError extends Error {}
