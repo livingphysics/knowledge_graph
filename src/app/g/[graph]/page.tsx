@@ -6,13 +6,16 @@ import NodeIcon from '@/components/NodeIcon';
 import NodeList from '@/components/NodeList';
 import RecentFeed from '@/components/RecentFeed';
 import ViewToggle, { type ViewMode } from '@/components/ViewToggle';
-import { listNodes } from '@/lib/nodes';
+import GroupToggle, { type GroupMode } from '@/components/GroupToggle';
+import { listNodes, typeLabel, type NodeType } from '@/lib/nodes';
 import { getGraph } from '@/lib/registry';
 import { gPath } from '@/lib/gpath';
 
 export const dynamic = 'force-dynamic';
 
 const RECENT_PAGE_SIZE = 20;
+const TYPE_SECTION_LIMIT = 25;
+const TYPES: NodeType[] = ['question', 'thought', 'reference'];
 
 interface Props {
   params: Promise<{ graph: string }>;
@@ -23,10 +26,21 @@ export default async function GraphHomePage({ params, searchParams }: Props) {
   const { graph } = await params;
   const sp = await searchParams;
   const view: ViewMode = sp.view === 'cards' ? 'cards' : 'compact';
+  const group: GroupMode = sp.group === 'type' ? 'type' : 'mixed';
   const meta = getGraph(graph);
   const pinned = listNodes(graph, { pinned: true, limit: 50 });
   const recent = listNodes(graph, { pinned: false, limit: RECENT_PAGE_SIZE });
   const hasAny = pinned.length + recent.length > 0;
+
+  // In "by type" mode, each section is that type's recent (non-pinned) notes,
+  // newest first, capped — with a link to the full per-type list.
+  const byType =
+    group === 'type'
+      ? TYPES.map((t) => ({
+          type: t,
+          items: listNodes(graph, { type: t, pinned: false, limit: TYPE_SECTION_LIMIT }),
+        })).filter((s) => s.items.length > 0)
+      : [];
 
   return (
     <>
@@ -58,9 +72,11 @@ export default async function GraphHomePage({ params, searchParams }: Props) {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-end mb-3">
+            <div className="flex items-center justify-end gap-4 mb-3">
+              <GroupToggle value={group} />
               <ViewToggle value={view} />
             </div>
+
             {pinned.length > 0 && (
               <section className="mb-6">
                 <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-3 inline-flex items-center gap-1.5">
@@ -69,17 +85,39 @@ export default async function GraphHomePage({ params, searchParams }: Props) {
                 <NodeList graph={graph} items={pinned} view={view} />
               </section>
             )}
-            {recent.length > 0 && (
-              <section>
-                <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-3">Recent</h2>
-                <RecentFeed
-                  key={view}
-                  graph={graph}
-                  initialItems={recent}
-                  view={view}
-                  initialHasMore={recent.length === RECENT_PAGE_SIZE}
-                />
-              </section>
+
+            {group === 'type' ? (
+              byType.map(({ type, items }) => (
+                <section key={type} className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm uppercase tracking-wider text-neutral-500 inline-flex items-center gap-1.5">
+                      <NodeIcon type={type} className="w-3.5 h-3.5" /> {typeLabel(type)}s
+                    </h2>
+                    {items.length === TYPE_SECTION_LIMIT && (
+                      <Link
+                        href={gPath(graph, `/list?type=${type}`)}
+                        className="text-xs text-sky-400 [html.light_&]:text-sky-700 hover:underline"
+                      >
+                        View all →
+                      </Link>
+                    )}
+                  </div>
+                  <NodeList graph={graph} items={items} view={view} />
+                </section>
+              ))
+            ) : (
+              recent.length > 0 && (
+                <section>
+                  <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-3">Recent</h2>
+                  <RecentFeed
+                    key={view}
+                    graph={graph}
+                    initialItems={recent}
+                    view={view}
+                    initialHasMore={recent.length === RECENT_PAGE_SIZE}
+                  />
+                </section>
+              )
             )}
           </>
         )}
