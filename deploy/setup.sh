@@ -5,6 +5,7 @@
 set -euo pipefail
 
 REPO="${REPO:-}"
+BRANCH="${BRANCH:-main}"   # set BRANCH=multi-graph to deploy a branch
 APP_DIR="/srv/kg"
 SERVICE_USER="kg"
 
@@ -83,12 +84,14 @@ fi
 
 # --- clone / pull ---
 if [[ ! -d "$APP_DIR/.git" ]]; then
-  echo ">>> cloning $REPO into $APP_DIR"
+  echo ">>> cloning $REPO ($BRANCH) into $APP_DIR"
   sudo mkdir -p "$APP_DIR"
   sudo chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
-  sudo -u "$SERVICE_USER" git clone "$REPO" "$APP_DIR"
+  sudo -u "$SERVICE_USER" git clone --branch "$BRANCH" "$REPO" "$APP_DIR"
 else
-  echo ">>> $APP_DIR already a git repo, pulling latest"
+  echo ">>> $APP_DIR already a git repo; checking out $BRANCH and pulling"
+  sudo -u "$SERVICE_USER" git -C "$APP_DIR" fetch origin
+  sudo -u "$SERVICE_USER" git -C "$APP_DIR" checkout "$BRANCH"
   sudo -u "$SERVICE_USER" git -C "$APP_DIR" pull
 fi
 

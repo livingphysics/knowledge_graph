@@ -10,8 +10,8 @@ export function slugify(title: string): string {
     .slice(0, 80) || 'untitled';
 }
 
-export function uniqueSlug(title: string): string {
-  const db = getDb();
+export function uniqueSlug(graph: string, title: string): string {
+  const db = getDb(graph);
   const base = slugify(title);
   const exists = db.prepare('SELECT 1 FROM nodes WHERE slug = ?');
   if (!exists.get(base)) return base;

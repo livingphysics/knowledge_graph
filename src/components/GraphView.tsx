@@ -10,6 +10,7 @@ import fcose from 'cytoscape-fcose';
 import edgehandles from 'cytoscape-edgehandles';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Pencil, Check } from 'lucide-react';
+import { gPath } from '@/lib/gpath';
 
 cytoscape.use(fcose);
 cytoscape.use(edgehandles);
@@ -47,7 +48,7 @@ interface HoverState {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EhInstance = { enableDrawMode?: () => void; disableDrawMode?: () => void } & any;
 
-export default function GraphView() {
+export default function GraphView({ graph }: { graph: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
   const ehRef = useRef<EhInstance | null>(null);
@@ -73,7 +74,7 @@ export default function GraphView() {
 
     async function init() {
       try {
-        const res = await fetch('/api/graph');
+        const res = await fetch(gPath(graph, '/api/graph'));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as ApiData;
         if (cancelled || !containerRef.current) return;
@@ -85,6 +86,13 @@ export default function GraphView() {
 
         const nodeBySlug = new Map(data.nodes.map((n) => [n.slug, n]));
 
+        // Defensive: never feed Cytoscape an edge whose endpoint isn't a node —
+        // it throws on init and the whole graph fails to render. (The API also
+        // filters these, but a stray edge must not be able to crash the view.)
+        const validEdges = data.edges.filter(
+          (e) => nodeBySlug.has(e.source) && nodeBySlug.has(e.target)
+        );
+
         const elements: ElementDefinition[] = [
           ...data.nodes.map((n) => ({
             data: {
@@ -94,7 +102,7 @@ export default function GraphView() {
               in_degree: n.in_degree,
             },
           })),
-          ...data.edges.map((e) => ({
+          ...validEdges.map((e) => ({
             data: { id: `${e.source}--${e.target}`, source: e.source, target: e.target },
           })),
         ];
@@ -218,7 +226,7 @@ export default function GraphView() {
         cy.on('tap', 'node', (evt) => {
           if (editingRef.current) return; // in edit mode, taps on nodes start edges, not nav
           const slug = evt.target.id();
-          router.push(`/n/${slug}`);
+          router.push(gPath(graph, `/n/${slug}`));
         });
 
         // --- edge editing ---
@@ -236,7 +244,7 @@ export default function GraphView() {
           const from = sourceNode.id() as string;
           const to = targetNode.id() as string;
           addedEdge.remove();
-          fetch('/api/links', {
+          fetch(gPath(graph, '/api/links'), {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ from, to }),
@@ -264,7 +272,7 @@ export default function GraphView() {
           const b = edge.target().id() as string;
           if (!confirm(`Remove link between "${a}" and "${b}"?`)) return;
           edge.addClass('hovered');
-          fetch('/api/links', {
+          fetch(gPath(graph, '/api/links'), {
             method: 'DELETE',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ a, b }),
@@ -324,7 +332,7 @@ export default function GraphView() {
       cyRef.current?.destroy();
       cyRef.current = null;
     };
-  }, [router, focus]);
+  }, [router, focus, graph]);
 
   if (error) {
     return (

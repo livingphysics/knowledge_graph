@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import NodeIcon from './NodeIcon';
 import type { NodeWithPreview } from '@/lib/node-types';
 import type { ViewMode } from './ViewToggle';
+import { gPath } from '@/lib/gpath';
 
 // Pure presentational — no server-only imports — so this works inside both the
 // server home page and the client-side RecentFeed.
@@ -15,22 +16,28 @@ const DATE_FMT = new Intl.DateTimeFormat('en-US', {
 const formatDate = (ms: number) => DATE_FMT.format(new Date(ms));
 
 export default function NodeList({
+  graph,
   items,
   view,
 }: {
+  graph: string;
   items: NodeWithPreview[];
   view: ViewMode;
 }) {
-  return view === 'cards' ? <CardsList items={items} /> : <CompactList items={items} />;
+  return view === 'cards' ? (
+    <CardsList graph={graph} items={items} />
+  ) : (
+    <CompactList graph={graph} items={items} />
+  );
 }
 
-function CardsList({ items }: { items: NodeWithPreview[] }) {
+function CardsList({ graph, items }: { graph: string; items: NodeWithPreview[] }) {
   return (
     <ul className="flex flex-col gap-2">
       {items.map((n) => (
         <li key={n.slug}>
           <Link
-            href={`/n/${n.slug}`}
+            href={gPath(graph, `/n/${n.slug}`)}
             className="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-neutral-800 [html.light_&]:border-neutral-200 bg-neutral-900/40 [html.light_&]:bg-neutral-100/60 hover:bg-neutral-800/60 [html.light_&]:hover:bg-neutral-200/60"
           >
             <NodeIcon
@@ -70,13 +77,13 @@ function CardsList({ items }: { items: NodeWithPreview[] }) {
   );
 }
 
-function CompactList({ items }: { items: NodeWithPreview[] }) {
+function CompactList({ graph, items }: { graph: string; items: NodeWithPreview[] }) {
   return (
     <ul className="flex flex-col gap-2">
       {items.map((n) => (
         <li key={n.slug}>
           <Link
-            href={`/n/${n.slug}`}
+            href={gPath(graph, `/n/${n.slug}`)}
             className="flex items-center gap-2.5 px-3 py-2 rounded hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200"
           >
             <NodeIcon

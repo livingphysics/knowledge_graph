@@ -14,10 +14,10 @@ const ARXIV_RE_OLD = /arXiv\s*:\s*([a-zA-Z\-]+(?:\.[A-Z]{2})?\/\d{7})(?:v\d+)?/;
  * Scans only the first 2 pages — arXiv stamps the id in the left margin of
  * page 1 (and a copy survives in the cross-reference dictionary of most files).
  */
-export async function extractArxivIdFromPdf(sha256: string): Promise<string | null> {
+export async function extractArxivIdFromPdf(graph: string, sha256: string): Promise<string | null> {
   let buf: Buffer;
   try {
-    buf = fs.readFileSync(paths.uploadFile(sha256));
+    buf = fs.readFileSync(paths.uploadFile(graph, sha256));
   } catch {
     return null;
   }

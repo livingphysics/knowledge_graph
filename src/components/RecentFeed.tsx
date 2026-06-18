@@ -5,17 +5,19 @@ import { ChevronDown, Loader2 } from 'lucide-react';
 import NodeList from './NodeList';
 import type { NodeWithPreview } from '@/lib/node-types';
 import type { ViewMode } from './ViewToggle';
+import { gPath } from '@/lib/gpath';
 
 const PAGE_SIZE = 20;
 
 interface Props {
+  graph: string;
   initialItems: NodeWithPreview[];
   view: ViewMode;
   /** Whether the server's first page already hit the end. */
   initialHasMore: boolean;
 }
 
-export default function RecentFeed({ initialItems, view, initialHasMore }: Props) {
+export default function RecentFeed({ graph, initialItems, view, initialHasMore }: Props) {
   const [items, setItems] = useState(initialItems);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(false);
@@ -27,7 +29,7 @@ export default function RecentFeed({ initialItems, view, initialHasMore }: Props
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/nodes?pinned=false&limit=${PAGE_SIZE}&offset=${items.length}`
+        gPath(graph, `/api/nodes?pinned=false&limit=${PAGE_SIZE}&offset=${items.length}`)
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { items: NodeWithPreview[]; hasMore: boolean };
@@ -41,7 +43,7 @@ export default function RecentFeed({ initialItems, view, initialHasMore }: Props
     } finally {
       setLoading(false);
     }
-  }, [loading, hasMore, items.length]);
+  }, [loading, hasMore, items.length, graph]);
 
   // Auto-load when the sentinel scrolls into view (pull-up infinite scroll).
   useEffect(() => {
@@ -59,7 +61,7 @@ export default function RecentFeed({ initialItems, view, initialHasMore }: Props
 
   return (
     <>
-      <NodeList items={items} view={view} />
+      <NodeList graph={graph} items={items} view={view} />
       {hasMore && (
         <div ref={sentinelRef} className="mt-3 flex justify-center">
           <button

@@ -2,18 +2,32 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 
-// Each instance points at its own data dir via KG_DATA_DIR; unset = single-instance
-// default of <cwd>/data (backwards compatible with the original single-droplet setup).
-const DATA_DIR = process.env.KG_DATA_DIR || path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'app.db');
+// Root for ALL graphs. KG_DATA_DIR overrides; default <cwd>/data.
+// Each graph lives in its own subdir: <DATA_ROOT>/graphs/<graph>/{app.db,nodes,uploads}
+// The registry lives at <DATA_ROOT>/registry.db
+export const DATA_ROOT = process.env.KG_DATA_DIR || path.join(process.cwd(), 'data');
+const GRAPHS_DIR = path.join(DATA_ROOT, 'graphs');
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(path.join(DATA_DIR, 'nodes'), { recursive: true });
-fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
+fs.mkdirSync(GRAPHS_DIR, { recursive: true });
+
+const GRAPH_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/** Validate a graph name — guards against path traversal and keeps URLs clean. */
+export function isValidGraphName(graph: string): boolean {
+  return GRAPH_NAME_RE.test(graph);
+}
+export function assertGraphName(graph: string): void {
+  if (!isValidGraphName(graph)) throw new Error(`Invalid graph name: ${graph}`);
+}
+
+export function graphDir(graph: string): string {
+  assertGraphName(graph);
+  return path.join(GRAPHS_DIR, graph);
+}
 
 declare global {
   // eslint-disable-next-line no-var
-  var __db: Database.Database | undefined;
+  var __dbs: Map<string, Database.Database> | undefined;
 }
 
 function init(db: Database.Database) {
@@ -90,17 +104,26 @@ function ensureColumn(
   }
 }
 
-export function getDb(): Database.Database {
-  if (!global.__db) {
-    const db = new Database(DB_PATH);
-    init(db);
-    global.__db = db;
-  }
-  return global.__db;
+/** Open (and cache) the SQLite connection for a single graph, creating its dir + schema. */
+export function getDb(graph: string): Database.Database {
+  assertGraphName(graph);
+  if (!global.__dbs) global.__dbs = new Map();
+  const cached = global.__dbs.get(graph);
+  if (cached) return cached;
+
+  const dir = path.join(GRAPHS_DIR, graph);
+  fs.mkdirSync(path.join(dir, 'nodes'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'uploads'), { recursive: true });
+  const db = new Database(path.join(dir, 'app.db'));
+  init(db);
+  global.__dbs.set(graph, db);
+  return db;
 }
 
 export const paths = {
-  DATA_DIR,
-  nodeFile: (slug: string) => path.join(DATA_DIR, 'nodes', `${slug}.md`),
-  uploadFile: (sha: string) => path.join(DATA_DIR, 'uploads', `${sha}.pdf`),
+  DATA_ROOT,
+  GRAPHS_DIR,
+  graphDir,
+  nodeFile: (graph: string, slug: string) => path.join(graphDir(graph), 'nodes', `${slug}.md`),
+  uploadFile: (graph: string, sha: string) => path.join(graphDir(graph), 'uploads', `${sha}.pdf`),
 };

@@ -10,8 +10,8 @@ export interface Comment {
 
 export const MAX_COMMENT_LEN = 4000;
 
-export function listComments(slug: string): Comment[] {
-  return getDb()
+export function listComments(graph: string, slug: string): Comment[] {
+  return getDb(graph)
     .prepare(
       'SELECT id, node_slug, body, created_at FROM comments WHERE node_slug = ? ORDER BY created_at ASC LIMIT 500'
     )
@@ -19,6 +19,7 @@ export function listComments(slug: string): Comment[] {
 }
 
 export function addComment(
+  graph: string,
   slug: string,
   body: string,
   ip: string | null | undefined
@@ -29,7 +30,7 @@ export function addComment(
     throw new Error(`comment too long (max ${MAX_COMMENT_LEN} chars)`);
   }
   const now = Date.now();
-  const r = getDb()
+  const r = getDb(graph)
     .prepare(
       'INSERT INTO comments (node_slug, body, author_ip_hash, created_at) VALUES (?, ?, ?, ?)'
     )
@@ -37,7 +38,7 @@ export function addComment(
   return { id: Number(r.lastInsertRowid), node_slug: slug, body: trimmed, created_at: now };
 }
 
-export function deleteComment(id: number): boolean {
-  const r = getDb().prepare('DELETE FROM comments WHERE id = ?').run(id);
+export function deleteComment(graph: string, id: number): boolean {
+  const r = getDb(graph).prepare('DELETE FROM comments WHERE id = ?').run(id);
   return r.changes > 0;
 }

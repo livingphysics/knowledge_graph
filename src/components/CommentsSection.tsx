@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { HelpCircle, Lightbulb, Trash2 } from 'lucide-react';
 import type { Comment } from '@/lib/comments';
+import { gPath } from '@/lib/gpath';
+import SubmitButton from './SubmitButton';
 
 const DATE_FMT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -20,6 +22,7 @@ function relativeDate(ms: number): string {
 }
 
 interface Props {
+  graph: string;
   slug: string;
   comments: Comment[];
   /** Server actions passed in from the page; both implement (formData: FormData) => Promise<void> */
@@ -29,12 +32,17 @@ interface Props {
   deleteAction: (formData: FormData) => Promise<any>;
 }
 
-function upgradeHref(type: 'question' | 'thought', fromSlug: string, body: string): string {
+function upgradeHref(
+  graph: string,
+  type: 'question' | 'thought',
+  fromSlug: string,
+  body: string
+): string {
   const params = new URLSearchParams({ type, from: fromSlug, body });
-  return `/new?${params.toString()}`;
+  return gPath(graph, `/new?${params.toString()}`);
 }
 
-export default function CommentsSection({ slug, comments, addAction, deleteAction }: Props) {
+export default function CommentsSection({ graph, slug, comments, addAction, deleteAction }: Props) {
   return (
     <section className="mt-12">
       <h2 className="text-xs uppercase tracking-wider text-neutral-500 mb-3">
@@ -59,7 +67,7 @@ export default function CommentsSection({ slug, comments, addAction, deleteActio
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
                   <Link
-                    href={upgradeHref('question', slug, c.body)}
+                    href={upgradeHref(graph, 'question', slug, c.body)}
                     aria-label="Upgrade comment to question"
                     title="Upgrade to a Question"
                     className="p-1 rounded text-neutral-500 hover:text-sky-400 hover:bg-sky-950/40 [html.light_&]:hover:bg-sky-50 [html.light_&]:hover:text-sky-700"
@@ -67,7 +75,7 @@ export default function CommentsSection({ slug, comments, addAction, deleteActio
                     <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
                   </Link>
                   <Link
-                    href={upgradeHref('thought', slug, c.body)}
+                    href={upgradeHref(graph, 'thought', slug, c.body)}
                     aria-label="Upgrade comment to thought"
                     title="Upgrade to a Thought"
                     className="p-1 rounded text-neutral-500 hover:text-amber-400 hover:bg-amber-950/40 [html.light_&]:hover:bg-amber-50 [html.light_&]:hover:text-amber-700"
@@ -111,12 +119,12 @@ export default function CommentsSection({ slug, comments, addAction, deleteActio
           className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 text-sm focus:outline-none focus:border-sky-500"
         />
         <div className="flex justify-end">
-          <button
-            type="submit"
+          <SubmitButton
+            pendingLabel="Posting…"
             className="px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white text-sm"
           >
             Post comment
-          </button>
+          </SubmitButton>
         </div>
       </form>
     </section>
