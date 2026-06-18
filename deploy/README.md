@@ -268,6 +268,43 @@ yes). Auto-renewal runs every 12 hours via the `certbot.timer` systemd unit.
 
 ---
 
+## Porting a single-graph instance into the multi-graph portal
+
+The multi-graph build stores each graph's data in the *same* schema the
+single-graph build used — just relocated under `data/graphs/<name>/` with a
+registry row. So an old single-graph instance ports with a file move + one
+insert; nothing in the data is rewritten.
+
+**In place** (upgrade an existing single-graph droplet):
+
+```bash
+# 1. switch the droplet to the multi-graph branch and rebuild
+sudo -u kg git -C /srv/kg fetch origin
+sudo -u kg git -C /srv/kg checkout multi-graph
+sudo /srv/kg/deploy/update.sh
+
+# 2. port the old data (do this BEFORE visiting /g/<name>)
+sudo /srv/kg/deploy/migrate-to-multigraph.sh aspen26 "Aspen 2026"
+```
+
+That moves `/srv/kg/data/{app.db,nodes,uploads}` → `/srv/kg/data/graphs/aspen26/`,
+registers the graph, and restarts. It's now at `/g/aspen26`; the portal lists it.
+
+**From another droplet** (consolidate an old instance onto a multi-graph server):
+
+```bash
+# on the OLD droplet: archive its data
+sudo /srv/kg/deploy/backup.sh                      # or just tar /srv/kg/data
+
+# copy the archive to the NEW (multi-graph) droplet, unpack somewhere, then:
+sudo SRC=/path/to/unpacked/data \
+  /srv/kg/deploy/migrate-to-multigraph.sh aspen26 "Aspen 2026"
+```
+
+The script refuses to overwrite an existing graph of the same name, and the
+old/new schemas match exactly (including `bibtex_override`, `pdf_arxiv_id`,
+`pinned_at`), so no column migration is needed.
+
 ## Running multiple instances on one droplet
 
 You can host several independent graphs on a single droplet. The code is shared
