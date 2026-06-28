@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import Link from 'next/link';
@@ -80,7 +79,8 @@ export default async function NodePage({ params }: Props) {
   async function del() {
     'use server';
     deleteNode(graph, slug);
-    redirect(gPath(graph));
+    // Navigation is handled client-side by DeleteButton (router.replace to home),
+    // so we don't redirect() here.
   }
 
   async function pin() {
@@ -160,7 +160,7 @@ export default async function NodePage({ params }: Props) {
             >
               Edit
             </Link>
-            <DeleteButton action={del} title={node.title} />
+            <DeleteButton action={del} title={node.title} redirectTo={gPath(graph)} />
             {node.type === 'reference' && (
               <a
                 href={gPath(graph, `/api/bibtex/${slug}`)}
