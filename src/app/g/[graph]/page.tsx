@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Pin } from 'lucide-react';
+import { Pin, Network } from 'lucide-react';
 import TopMenu from '@/components/TopMenu';
 import BottomDock from '@/components/BottomDock';
 import NodeIcon from '@/components/NodeIcon';
@@ -72,9 +72,18 @@ export default async function GraphHomePage({ params, searchParams }: Props) {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-end gap-4 mb-3">
-              <GroupToggle value={group} />
-              <ViewToggle value={view} />
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <Link
+                href={gPath(graph, '/graph')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-700 [html.light_&]:border-neutral-300 hover:bg-neutral-800 [html.light_&]:hover:bg-neutral-200 text-sm"
+              >
+                <Network className="w-4 h-4" strokeWidth={1.75} />
+                View graph
+              </Link>
+              <div className="flex items-center gap-4">
+                <GroupToggle value={group} />
+                <ViewToggle value={view} />
+              </div>
             </div>
 
             {pinned.length > 0 && (

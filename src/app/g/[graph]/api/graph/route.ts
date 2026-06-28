@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { getDb, paths } from '@/lib/db';
 import { makePreview, type NodeType } from '@/lib/nodes';
+import { listPositions } from '@/lib/positions';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,5 +61,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ graph: 
     )
     .all() as GraphEdge[];
 
-  return Response.json({ nodes, edges });
+  const positions = listPositions(graph);
+
+  return Response.json({ nodes, edges, positions });
 }

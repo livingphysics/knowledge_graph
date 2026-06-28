@@ -84,6 +84,14 @@ function init(db: Database.Database) {
       FOREIGN KEY (node_slug) REFERENCES nodes(slug) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_reactions_node ON reactions(node_slug, emoji);
+
+    -- Manual graph-view layout: saved x/y per node. Absent = auto (force) layout.
+    CREATE TABLE IF NOT EXISTS node_positions (
+      node_slug  TEXT PRIMARY KEY,
+      x          REAL NOT NULL,
+      y          REAL NOT NULL,
+      FOREIGN KEY (node_slug) REFERENCES nodes(slug) ON DELETE CASCADE
+    );
   `);
 
   // Idempotent column additions for existing DBs.
