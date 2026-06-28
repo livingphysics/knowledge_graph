@@ -1,44 +1,54 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 
 interface Props {
-  /** Server action that deletes the node. */
-  action: () => Promise<void>;
-  title: string;
+  /** DELETE endpoint for this node, e.g. /g/<graph>/api/nodes/<slug>. */
+  deleteUrl: string;
   /** Where to go after a successful delete (the graph home). */
   redirectTo: string;
+  title: string;
 }
 
-export default function DeleteButton({ action, title, redirectTo }: Props) {
+export default function DeleteButton({ deleteUrl, redirectTo, title }: Props) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
 
-  function onClick() {
+  async function onClick() {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
-    startTransition(async () => {
-      await action();
-      // Navigate explicitly client-side (replace, so the back button doesn't
-      // return to the now-deleted node), then refresh so the home feed drops it.
+    setBusy(true);
+    try {
+      const res = await fetch(deleteUrl, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${data.error ?? res.status}`);
+        setBusy(false);
+        return;
+      }
+      // Replace (not push) so the back button doesn't return to the deleted node,
+      // then refresh so the home feed/graph drop it.
       router.replace(redirectTo);
       router.refresh();
-    });
+    } catch {
+      alert('Delete failed: network error');
+      setBusy(false);
+    }
   }
 
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={pending}
+      disabled={busy}
       aria-label={`Delete ${title}`}
       className={`px-2 py-1 rounded border border-red-800/60 text-red-400 hover:bg-red-950/40 [html.light_&]:border-red-300 [html.light_&]:text-red-700 [html.light_&]:hover:bg-red-50 inline-flex items-center gap-1.5 text-sm ${
-        pending ? 'opacity-60 cursor-not-allowed' : ''
+        busy ? 'opacity-60 cursor-not-allowed' : ''
       }`}
     >
       <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-      {pending ? 'Deleting…' : 'Delete'}
+      {busy ? 'Deleting…' : 'Delete'}
     </button>
   );
 }

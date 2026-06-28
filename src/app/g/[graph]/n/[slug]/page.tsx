@@ -11,7 +11,7 @@ import DeleteButton from '@/components/DeleteButton';
 import PdfPreview from '@/components/PdfPreview';
 import ReactionBar from '@/components/ReactionBar';
 import CommentsSection from '@/components/CommentsSection';
-import { getNode, deleteNode, togglePin, typeLabel } from '@/lib/nodes';
+import { getNode, togglePin, typeLabel } from '@/lib/nodes';
 import { renderMarkdown } from '@/lib/markdown';
 import { listComments, addComment, deleteComment } from '@/lib/comments';
 import { listReactions } from '@/lib/reactions';
@@ -75,13 +75,6 @@ export default async function NodePage({ params }: Props) {
     reqHeaders.get('x-real-ip') ||
     null;
   const reactions = listReactions(graph, slug, viewerIp);
-
-  async function del() {
-    'use server';
-    deleteNode(graph, slug);
-    // Navigation is handled client-side by DeleteButton (router.replace to home),
-    // so we don't redirect() here.
-  }
 
   async function pin() {
     'use server';
@@ -160,7 +153,11 @@ export default async function NodePage({ params }: Props) {
             >
               Edit
             </Link>
-            <DeleteButton action={del} title={node.title} redirectTo={gPath(graph)} />
+            <DeleteButton
+              deleteUrl={gPath(graph, `/api/nodes/${slug}`)}
+              redirectTo={gPath(graph)}
+              title={node.title}
+            />
             {node.type === 'reference' && (
               <a
                 href={gPath(graph, `/api/bibtex/${slug}`)}
