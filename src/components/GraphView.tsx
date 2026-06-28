@@ -9,7 +9,7 @@ import cytoscape, {
 import fcose from 'cytoscape-fcose';
 import edgehandles from 'cytoscape-edgehandles';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Pencil, Check } from 'lucide-react';
+import { Pencil, Check, RotateCcw } from 'lucide-react';
 import { gPath } from '@/lib/gpath';
 
 cytoscape.use(fcose);
@@ -19,6 +19,21 @@ const COLORS = {
   question: '#0ea5e9',
   thought: '#f59e0b',
   reference: '#10b981',
+} as const;
+
+// Force-layout options, shared between first load and the "Re-layout" button.
+const FCOSE_OPTS = {
+  name: 'fcose',
+  animate: true,
+  animationDuration: 600,
+  randomize: true,
+  quality: 'proof',
+  nodeSeparation: 80,
+  idealEdgeLength: 110,
+  nodeRepulsion: 6500,
+  gravity: 0.15,
+  padding: 60,
+  nodeDimensionsIncludeLabels: true,
 } as const;
 
 interface GraphNode {
@@ -37,6 +52,7 @@ function sizeForDegree(d: number): number {
 interface ApiData {
   nodes: GraphNode[];
   edges: { source: string; target: string }[];
+  positions?: Record<string, { x: number; y: number }>;
 }
 
 interface HoverState {
@@ -53,6 +69,7 @@ export default function GraphView({ graph }: { graph: string }) {
   const cyRef = useRef<Core | null>(null);
   const ehRef = useRef<EhInstance | null>(null);
   const editingRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const focus = searchParams.get('focus');
@@ -93,6 +110,10 @@ export default function GraphView({ graph }: { graph: string }) {
           (e) => nodeBySlug.has(e.source) && nodeBySlug.has(e.target)
         );
 
+        const positions = data.positions ?? {};
+        const savedSlugs = data.nodes.map((n) => n.slug).filter((s) => positions[s]);
+        const everySaved = data.nodes.length > 0 && savedSlugs.length === data.nodes.length;
+
         const elements: ElementDefinition[] = [
           ...data.nodes.map((n) => ({
             data: {
@@ -101,11 +122,31 @@ export default function GraphView({ graph }: { graph: string }) {
               type: n.type,
               in_degree: n.in_degree,
             },
+            ...(positions[n.slug]
+              ? { position: { x: positions[n.slug].x, y: positions[n.slug].y } }
+              : {}),
           })),
           ...validEdges.map((e) => ({
             data: { id: `${e.source}--${e.target}`, source: e.source, target: e.target },
           })),
         ];
+
+        // Layout choice:
+        //  - no saved positions      → force layout (fresh auto)
+        //  - all nodes saved         → preset (honor the manual arrangement exactly)
+        //  - some saved, some new    → force layout with saved nodes pinned, so new
+        //                              nodes get placed around the existing arrangement
+        let layout: cytoscape.LayoutOptions;
+        if (savedSlugs.length === 0) {
+          layout = { ...FCOSE_OPTS } as cytoscape.LayoutOptions;
+        } else if (everySaved) {
+          layout = { name: 'preset' } as cytoscape.LayoutOptions;
+        } else {
+          layout = {
+            ...FCOSE_OPTS,
+            fixedNodeConstraint: savedSlugs.map((s) => ({ nodeId: s, position: positions[s] })),
+          } as unknown as cytoscape.LayoutOptions;
+        }
 
         const cy = cytoscape({
           container: containerRef.current,
@@ -208,19 +249,7 @@ export default function GraphView({ graph }: { graph: string }) {
               style: { opacity: 0 },
             },
           ],
-          layout: {
-            name: 'fcose',
-            animate: true,
-            animationDuration: 600,
-            randomize: true,
-            quality: 'proof',
-            nodeSeparation: 80,
-            idealEdgeLength: 110,
-            nodeRepulsion: 6500,
-            gravity: 0.15,
-            padding: 60,
-            nodeDimensionsIncludeLabels: true,
-          } as cytoscape.LayoutOptions,
+          layout,
         });
 
         cy.on('tap', 'node', (evt) => {
@@ -308,6 +337,26 @@ export default function GraphView({ graph }: { graph: string }) {
 
         cy.on('pan zoom drag', () => setHover(null));
 
+        // Save the manual layout when a node is dropped (not while link-editing,
+        // where drags draw edges). Snapshot ALL positions so the arrangement is
+        // stable on reload (and debounce rapid drags).
+        cy.on('dragfree', 'node', () => {
+          if (editingRef.current) return;
+          if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = setTimeout(() => {
+            const snapshot = cy.nodes().map((n) => ({
+              slug: n.id(),
+              x: n.position('x'),
+              y: n.position('y'),
+            }));
+            fetch(gPath(graph, '/api/positions'), {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ positions: snapshot }),
+            }).catch(() => {});
+          }, 500);
+        });
+
         cy.one('layoutstop', () => {
           if (focus) {
             const target = cy.getElementById(focus);
@@ -328,11 +377,20 @@ export default function GraphView({ graph }: { graph: string }) {
 
     return () => {
       cancelled = true;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       ehRef.current = null;
       cyRef.current?.destroy();
       cyRef.current = null;
     };
   }, [router, focus, graph]);
+
+  // "Re-layout": forget the manual arrangement and re-run the force layout.
+  function relayout() {
+    const cy = cyRef.current;
+    if (!cy) return;
+    fetch(gPath(graph, '/api/positions'), { method: 'DELETE' }).catch(() => {});
+    cy.layout({ ...FCOSE_OPTS } as cytoscape.LayoutOptions).run();
+  }
 
   if (error) {
     return (
@@ -353,7 +411,18 @@ export default function GraphView({ graph }: { graph: string }) {
   return (
     <>
       <div ref={containerRef} className="absolute inset-0" />
-      <EditToggle editing={editing} onToggle={() => setEditing((e) => !e)} />
+      {/* Toolbar sits left of the hamburger (top-right). */}
+      <div className="fixed top-3 right-16 z-40 flex items-center gap-2">
+        <button
+          onClick={relayout}
+          title="Re-run the automatic force layout (discards manual positions)"
+          className="px-3 h-10 inline-flex items-center gap-1.5 rounded-lg border text-sm transition bg-neutral-800/90 hover:bg-neutral-700 border-neutral-700 [html.light_&]:bg-neutral-100/95 [html.light_&]:hover:bg-neutral-200 [html.light_&]:border-neutral-300"
+        >
+          <RotateCcw className="w-4 h-4" strokeWidth={1.75} />
+          Re-layout
+        </button>
+        <EditToggle editing={editing} onToggle={() => setEditing((e) => !e)} />
+      </div>
       {editing && <EditHint />}
       <Legend />
       {hover && <Tooltip hover={hover} />}
@@ -372,7 +441,7 @@ function EditToggle({
     <button
       onClick={onToggle}
       aria-pressed={editing}
-      className={`fixed top-3 right-16 z-40 px-3 h-10 inline-flex items-center gap-1.5 rounded-lg border text-sm transition ${
+      className={`px-3 h-10 inline-flex items-center gap-1.5 rounded-lg border text-sm transition ${
         editing
           ? 'bg-sky-700 hover:bg-sky-600 border-sky-600 text-white'
           : 'bg-neutral-800/90 hover:bg-neutral-700 border-neutral-700 [html.light_&]:bg-neutral-100/95 [html.light_&]:hover:bg-neutral-200 [html.light_&]:border-neutral-300'
