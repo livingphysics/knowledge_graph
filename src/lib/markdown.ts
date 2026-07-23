@@ -1,7 +1,9 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
+import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import { visit } from 'unist-util-visit';
 import type { Root, Text, Parent } from 'mdast';
@@ -63,8 +65,10 @@ export async function renderMarkdown(graph: string, md: string): Promise<string>
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
+    .use(remarkMath)
     .use(remarkWikilinks(graph, existing))
     .use(remarkRehype)
+    .use(rehypeKatex)
     .use(rehypeStringify)
     .process(cleaned);
   return String(file);
