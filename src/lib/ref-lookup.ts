@@ -20,9 +20,10 @@ import {
 // fetchers in bibtex.ts, so lookups and BibTeX export share one rate budget
 // per provider.
 //
-// arXiv ids are resolved through arXiv's own API only: OpenAlex has mis-merged
-// records for some arXiv DOIs (10.48550/arXiv.2106.09685 carries another
-// paper's title), and a confidently wrong title is worse than none.
+// arXiv ids are resolved from arXiv's own records only (fetchArxivMeta: its
+// DataCite DOI registrations, then the arXiv API) — never OpenAlex, which has
+// mis-merged records for some arXiv DOIs (10.48550/arXiv.2106.09685 carries
+// another paper's title), and a confidently wrong title is worse than none.
 
 export interface LookupInput {
   url?: string | null;
