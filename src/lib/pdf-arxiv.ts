@@ -1,11 +1,6 @@
 import fs from 'node:fs';
 import { paths } from './db';
-
-// Covers both arXiv ID forms:
-//   2007–present: "arXiv:2401.12345" (4 digits dot 4-5 digits)
-//   pre-2007:     "arXiv:cs.AI/0601001" (category dot subcat slash 7 digits)
-const ARXIV_RE_NEW = /arXiv\s*:\s*(\d{4}\.\d{4,5})(?:v\d+)?/;
-const ARXIV_RE_OLD = /arXiv\s*:\s*([a-zA-Z\-]+(?:\.[A-Z]{2})?\/\d{7})(?:v\d+)?/;
+import { matchArxivInText } from './ref-ids';
 
 /**
  * Extracts an arXiv id from the watermark / running header of an uploaded PDF.
@@ -42,7 +37,7 @@ export async function extractArxivIdFromPdf(graph: string, sha256: string): Prom
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((it: any) => ('str' in it ? it.str : ''))
         .join(' ');
-      const id = matchArxiv(text);
+      const id = matchArxivInText(text);
       if (id) {
         await doc.cleanup();
         await doc.destroy();
@@ -55,9 +50,4 @@ export async function extractArxivIdFromPdf(graph: string, sha256: string): Prom
     return null;
   }
   return null;
-}
-
-function matchArxiv(text: string): string | null {
-  const m = text.match(ARXIV_RE_NEW) ?? text.match(ARXIV_RE_OLD);
-  return m ? m[1] : null;
 }

@@ -130,9 +130,10 @@ export default async function EditNodePage({ params }: Props) {
                 )}
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-neutral-500">
-                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max {MAX_PDF_MB}MB)
+                    {node.pdf_sha256 ? 'Replace with' : 'Upload'} (max {MAX_PDF_MB}MB — or drop one
+                    anywhere on the page)
                   </span>
-                  <PdfFileInput name="pdf" />
+                  <PdfFileInput name="pdf" acceptDrops />
                 </label>
                 {node.pdf_sha256 && (
                   <label className="flex items-center gap-2 text-sm text-neutral-400 [html.light_&]:text-neutral-600">

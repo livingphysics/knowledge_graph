@@ -7,6 +7,10 @@ interface Props {
   /** Label shown while the form action is in flight. */
   pendingLabel?: string;
   className?: string;
+  /** Disable the button for a reason other than a pending submit (e.g. a PDF still downloading). */
+  busy?: boolean;
+  /** Label shown while `busy`. */
+  busyLabel?: string;
 }
 
 /**
@@ -15,16 +19,17 @@ interface Props {
  * creating the same reference several times while the request lags).
  * Must be rendered inside the <form> it submits.
  */
-export default function SubmitButton({ children, pendingLabel, className }: Props) {
+export default function SubmitButton({ children, pendingLabel, className, busy = false, busyLabel }: Props) {
   const { pending } = useFormStatus();
+  const disabled = pending || busy;
   return (
     <button
       type="submit"
-      disabled={pending}
-      aria-disabled={pending}
-      className={`${className ?? ''} ${pending ? 'opacity-60 cursor-not-allowed' : ''}`}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`${className ?? ''} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
     >
-      {pending ? pendingLabel ?? 'Working…' : children}
+      {pending ? pendingLabel ?? 'Working…' : busy ? busyLabel ?? 'Working…' : children}
     </button>
   );
 }

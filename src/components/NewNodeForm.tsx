@@ -1,11 +1,13 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import NodeIcon from './NodeIcon';
 import MarkdownEditor from './MarkdownEditor';
 import CancelBackButton from './CancelBackButton';
 import SubmitButton from './SubmitButton';
-import PdfFileInput from './PdfFileInput';
+import PdfFileInput, { type PdfFileInputHandle } from './PdfFileInput';
+import AutofillStatus from './AutofillStatus';
+import { useReferenceAutofill } from './useReferenceAutofill';
 import { typeLabel, type NodeType } from '@/lib/node-types';
 import { gPath } from '@/lib/gpath';
 import { MAX_PDF_MB } from '@/lib/limits';
@@ -40,6 +42,19 @@ export default function NewNodeForm({
   const confirmedRef = useRef(false);
   const checkingRef = useRef(false);
 
+  const [title, setTitle] = useState(initialTitle);
+  const [url, setUrl] = useState('');
+  const pdfRef = useRef<PdfFileInputHandle>(null);
+  const autofill = useReferenceAutofill({
+    graph,
+    enabled: type === 'reference',
+    title,
+    setTitle,
+    url,
+    setUrl,
+    pdfRef,
+  });
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (confirmedRef.current) {
       confirmedRef.current = false;
@@ -55,6 +70,7 @@ export default function NewNodeForm({
     const title = (titleEl?.value ?? '').trim();
     if (!title) return; // native `required` validation handles the empty case
 
+    autofill.beginSubmit(); // a late lookup mustn't change the title we're about to check
     checkingRef.current = true;
     let proceed = true;
     try {
@@ -76,6 +92,8 @@ export default function NewNodeForm({
     if (proceed) {
       confirmedRef.current = true;
       form.requestSubmit();
+    } else {
+      autofill.cancelSubmit();
     }
   }
 
@@ -113,7 +131,9 @@ export default function NewNodeForm({
             name="title"
             required
             autoFocus={inModal}
-            defaultValue={initialTitle}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={(e) => autofill.commitTitle(e.currentTarget.value)}
             className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 focus:outline-none focus:border-sky-500"
           />
         </label>
@@ -121,20 +141,41 @@ export default function NewNodeForm({
         {type === 'reference' && (
           <>
             <label className="flex flex-col gap-1">
-              <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">Link (URL)</span>
+              <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
+                Link (URL — an arXiv or DOI link fills in the title)
+              </span>
               <input
                 type="url"
                 name="url"
-                placeholder="https://arxiv.org/abs/…"
+                placeholder="https://arxiv.org/abs/…, an arXiv ID, or a DOI"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onBlur={(e) => autofill.commitUrl(e.currentTarget.value)}
+                onPaste={(e) => {
+                  const el = e.currentTarget;
+                  setTimeout(() => autofill.commitUrl(el.value), 0); // once the paste has landed
+                }}
+                onKeyDown={(e) => {
+                  // First Enter on a fresh link looks it up instead of submitting.
+                  if (e.key === 'Enter' && autofill.commitUrl(e.currentTarget.value)) e.preventDefault();
+                }}
                 className="px-3 py-2 rounded bg-neutral-900 [html.light_&]:bg-white border border-neutral-700 [html.light_&]:border-neutral-300 focus:outline-none focus:border-sky-500"
               />
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
-                PDF (optional, max {MAX_PDF_MB}MB)
-              </span>
-              <PdfFileInput name="pdf" />
-            </label>
+            <div className="flex flex-col gap-1">
+              <label className="flex flex-col gap-1">
+                <span className="text-sm text-neutral-400 [html.light_&]:text-neutral-600">
+                  PDF (optional, max {MAX_PDF_MB}MB — or drop one anywhere on the page)
+                </span>
+                <PdfFileInput name="pdf" ref={pdfRef} onFile={autofill.onFile} acceptDrops />
+              </label>
+              <AutofillStatus
+                notes={autofill.notes}
+                suggestion={autofill.suggestion}
+                onUse={autofill.applySuggestion}
+                onDismiss={autofill.dismissSuggestion}
+              />
+            </div>
           </>
         )}
 
@@ -148,6 +189,8 @@ export default function NewNodeForm({
         <div className="flex gap-2">
           <SubmitButton
             pendingLabel="Creating…"
+            busy={autofill.pdfBusy}
+            busyLabel="Fetching PDF…"
             className="px-4 py-2 rounded bg-sky-700 hover:bg-sky-600 text-white"
           >
             Create

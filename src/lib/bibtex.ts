@@ -1,5 +1,6 @@
 import { listNodes, setNodePdfArxivId, type NodeRecord } from './nodes';
 import { extractArxivIdFromPdf } from './pdf-arxiv';
+import { extractIdentifier } from './ref-ids';
 
 const TIMEOUT_MS = 10_000;
 const USER_AGENT = 'KnowledgeGraph/1.0 (mailto:noreply@example.com)';
@@ -13,43 +14,20 @@ const OPENALEX_MIN_INTERVAL_MS = 200;
 
 function makeThrottle(minIntervalMs: number) {
   let nextAvailableAt = 0;
-  return async function throttle(): Promise<void> {
+  async function throttle(): Promise<void> {
     const slot = Math.max(Date.now(), nextAvailableAt);
     nextAvailableAt = slot + minIntervalMs;
     const delay = slot - Date.now();
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
-  };
+  }
+  /** How long a call made right now would wait for its slot. */
+  throttle.waitMs = () => Math.max(0, nextAvailableAt - Date.now());
+  return throttle;
 }
 
 const arxivThrottle = makeThrottle(ARXIV_MIN_INTERVAL_MS);
 const s2Throttle = makeThrottle(S2_MIN_INTERVAL_MS);
 const openAlexThrottle = makeThrottle(OPENALEX_MIN_INTERVAL_MS);
-
-interface Identifier {
-  kind: 'doi' | 'arxiv';
-  id: string;
-}
-
-/** Extracts a DOI or arXiv id from a URL, or null if neither pattern matches. */
-export function extractIdentifier(url: string | null | undefined): Identifier | null {
-  if (!url) return null;
-  // DOI in URL: https://doi.org/10.x/y, https://dx.doi.org/..., or "doi:..."
-  const doiInHost = url.match(/doi\.org\/(10\.\d{4,9}\/[^\s?#]+)/i);
-  if (doiInHost) return { kind: 'doi', id: decodeURIComponent(doiInHost[1]) };
-
-  // arXiv: arxiv.org/abs/2401.12345, arxiv.org/abs/cs.AI/0601001, arxiv.org/pdf/...
-  const arxiv = url.match(/arxiv\.org\/(?:abs|pdf|html)\/([a-zA-Z\-.\/0-9]+)/i);
-  if (arxiv) {
-    let id = arxiv[1].replace(/\.pdf$/i, '').replace(/v\d+$/, '');
-    return { kind: 'arxiv', id };
-  }
-
-  // Bare DOI in path (e.g., https://link.springer.com/article/10.x/y)
-  const bareDoi = url.match(/(10\.\d{4,9}\/[^\s?#]+)/);
-  if (bareDoi) return { kind: 'doi', id: bareDoi[1] };
-
-  return null;
-}
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response | null> {
   try {
@@ -75,7 +53,23 @@ async function fetchBibtexFromDoi(doi: string): Promise<string | null> {
   return null;
 }
 
-async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
+export interface ArxivMeta {
+  title: string;
+  authors: string[];
+  /** Four-digit year of first submission, or '' if absent. */
+  year: string;
+}
+
+/**
+ * Title/authors/year from the arXiv Atom API. `maxWaitMs` lets interactive
+ * callers bail out instead of queueing behind a long run of throttled
+ * requests (e.g. a BibTeX "export all" in progress).
+ */
+export async function fetchArxivMeta(
+  id: string,
+  opts: { maxWaitMs?: number } = {}
+): Promise<ArxivMeta | null> {
+  if (opts.maxWaitMs !== undefined && arxivThrottle.waitMs() > opts.maxWaitMs) return null;
   // arXiv returns plain "Rate exceeded." with status 200 when throttled.
   // The throttle below should prevent this on our side, but retry once
   // in case another process / earlier-this-run state slipped through.
@@ -100,7 +94,13 @@ async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
     m[1].trim()
   );
   const yearMatch = xml.match(/<entry>[\s\S]*?<published>(\d{4})/);
-  const year = yearMatch?.[1] ?? '';
+  return { title, authors, year: yearMatch?.[1] ?? '' };
+}
+
+async function fetchBibtexFromArxiv(id: string): Promise<string | null> {
+  const meta = await fetchArxivMeta(id);
+  if (!meta) return null;
+  const { title, authors, year } = meta;
   const key = `arxiv_${id.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
   return [
@@ -193,7 +193,7 @@ interface OpenAlexAuthor {
   author?: { display_name?: string };
 }
 
-interface OpenAlexWork {
+export interface OpenAlexWork {
   id?: string;
   doi?: string | null;
   title?: string | null;
@@ -205,6 +205,7 @@ interface OpenAlexWork {
   authorships?: OpenAlexAuthor[];
   host_venue?: { display_name?: string | null } | null;
   primary_location?: { source?: { display_name?: string | null } | null } | null;
+  locations?: { landing_page_url?: string | null }[] | null;
   biblio?: {
     volume?: string | null;
     issue?: string | null;
@@ -235,13 +236,13 @@ async function fetchOpenAlexByArxiv(arxivId: string): Promise<OpenAlexWork | nul
   );
 }
 
-async function fetchOpenAlexByDoi(doi: string): Promise<OpenAlexWork | null> {
+export async function fetchOpenAlexByDoi(doi: string): Promise<OpenAlexWork | null> {
   return openAlexFetch(
     `https://api.openalex.org/works/https://doi.org/${encodeURIComponent(doi)}`
   );
 }
 
-async function fetchOpenAlexByTitle(title: string): Promise<OpenAlexWork | null> {
+export async function fetchOpenAlexByTitle(title: string): Promise<OpenAlexWork | null> {
   if (title.split(/\s+/).length < 4) return null;
   await openAlexThrottle();
   const url = `https://api.openalex.org/works?search=${encodeURIComponent(title)}&per_page=3`;
@@ -341,16 +342,26 @@ function tokenizeForCompare(s: string): Set<string> {
   );
 }
 
-function titleSimilarity(a: string, b: string): number {
+/**
+ * Token overlap between two titles. By default it's divided by the smaller
+ * token set (1.0 = one title's words all appear in the other — lenient, good
+ * for search hits). `'max'` divides by the larger set, so extra words count
+ * against the match — used to check an identifier really belongs to a PDF.
+ */
+export function titleSimilarity(a: string, b: string, denominator: 'min' | 'max' = 'min'): number {
   const A = tokenizeForCompare(a);
   const B = tokenizeForCompare(b);
   if (A.size === 0 || B.size === 0) return 0;
   let overlap = 0;
   for (const t of A) if (B.has(t)) overlap++;
-  return overlap / Math.min(A.size, B.size); // 1.0 = full subset match
+  const size = denominator === 'min' ? Math.min(A.size, B.size) : Math.max(A.size, B.size);
+  return overlap / size; // 1.0 = full match
 }
 
-async function searchCrossrefForDoi(title: string): Promise<string | null> {
+/** Crossref title search: the DOI (and Crossref's title) of a clearly matching work. */
+export async function searchCrossrefForDoi(
+  title: string
+): Promise<{ doi: string; title: string } | null> {
   if (title.split(/\s+/).length < 4) return null; // too short, prone to mismatch
   const q = encodeURIComponent(title);
   const res = await fetchWithTimeout(`https://api.crossref.org/works?query.title=${q}&rows=3`);
@@ -366,7 +377,7 @@ async function searchCrossrefForDoi(title: string): Promise<string | null> {
     for (const item of items) {
       const candidate = (item.title?.[0] ?? '').trim();
       if (!candidate || !item.DOI) continue;
-      if (titleSimilarity(title, candidate) >= 0.8) return item.DOI;
+      if (titleSimilarity(title, candidate) >= 0.8) return { doi: item.DOI, title: candidate };
     }
     return null;
   } catch {
@@ -461,9 +472,9 @@ export async function bibtexFor(graph: string, node: NodeRecord): Promise<Bibtex
   // OpenAlex first (richer metadata), Crossref as backup.
   const oa = await fetchOpenAlexByTitle(node.title);
   if (oa) return { source: 'openalex-title', bibtex: bibtexFromOpenAlex(oa, { node }) };
-  const doi = await searchCrossrefForDoi(node.title);
-  if (doi) {
-    const out = await fetchBibtexFromDoi(doi);
+  const hit = await searchCrossrefForDoi(node.title);
+  if (hit) {
+    const out = await fetchBibtexFromDoi(hit.doi);
     if (out) return { source: 'crossref-title', bibtex: out };
   }
   return { source: 'fallback', bibtex: bibtexMisc(node) };
