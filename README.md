@@ -28,7 +28,9 @@ behind a portal where you can browse and create them.
 - An **Edit links** mode lets you draw links by dragging between nodes and delete them by tapping an edge.
 
 **References**
-- PDF upload with an in-browser size check (oversized files are blocked with a popup, not an error page) and a responsive PDF.js preview that scales on mobile.
+- **Auto-fill:** paste an arXiv link or ID (or a DOI) and the title fills in — for arXiv the PDF is downloaded and attached too. Choose a PDF and its title and link are read from the file (arXiv stamp, DOI, or the page-1 title). Type a title and a matching paper is offered with one click. Nothing you typed yourself is overwritten.
+- **Drag & drop:** drop a PDF anywhere in a graph to start a new reference from it (linked from the note you're on), or onto an open form to attach it.
+- PDF upload with an in-browser size/type check (oversized or non-PDF files are blocked with a popup, not an error page) and a responsive PDF.js preview that scales on mobile.
 - **BibTeX export** per reference or for all references at once. Resolution order: a manual override → OpenAlex → arXiv API → Semantic Scholar → Crossref title search → a minimal `@misc`. arXiv IDs are even recovered from the uploaded PDF's watermark (and cached).
 
 **Collaboration**
@@ -131,8 +133,8 @@ src/
       new/                     #   create node (also opens as a modal via @modal)
       list/  graph/            #   list view, force-directed graph view
       @modal/                  #   intercepted-route popups (e.g. + new node)
-      api/                     #   per-graph endpoints: nodes, suggest, graph,
-                               #   links, reactions, bibtex, quarto, uploads, exists
+      api/                     #   per-graph endpoints: nodes, suggest, graph, links,
+                               #   reactions, bibtex, quarto, uploads, exists, lookup
   components/                  # UI (NodeList, GraphView, RelatedSection, ReactionBar, …)
   lib/                         # data layer: db, registry, nodes, wikilinks,
                                # bibtex, quarto, markdown, uploads, auth, …
