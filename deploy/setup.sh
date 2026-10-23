@@ -32,11 +32,27 @@ echo ">>> installing system packages"
 sudo apt-get update
 sudo apt-get install -y curl git nginx ufw build-essential python3
 
-# Node 20 via nodesource (better-sqlite3 needs to compile against the same node)
-if ! command -v node >/dev/null || [[ "$(node -v)" != v20.* ]]; then
-  echo ">>> installing Node.js 20"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node 22 via NodeSource; 22.23.4 includes the CVE-2026-111497 fix.
+# better-sqlite3 must compile against the same Node.js used by the service.
+MIN_NODE_VERSION="22.23.4"
+node22_is_patched() {
+  command -v node >/dev/null || return 1
+  local version
+  version="$(node -v)" || return 1
+  [[ "$version" =~ ^v22[.][0-9]+[.][0-9]+$ ]] &&
+    dpkg --compare-versions "${version#v}" ge "$MIN_NODE_VERSION"
+}
+
+if ! node22_is_patched; then
+  echo ">>> installing Node.js 22 (minimum $MIN_NODE_VERSION)"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt-get install -y nodejs
+fi
+
+# Fail before npm ci/build if the package repository has not supplied the fix.
+if ! node22_is_patched; then
+  echo "ERROR: Node.js 22 >= $MIN_NODE_VERSION is required; found $(node -v 2>/dev/null || echo unavailable)." >&2
+  exit 1
 fi
 
 # --- service user owns the app dir ---
